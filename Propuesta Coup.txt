@@ -1,0 +1,43 @@
+Fierro Rodríguez Milton Yahir - 22440388
+Salazar Esquer Cesar - 22440193
+Beltrán Cruz Jorge Arturo – 22440780
+
+Alcance del proyecto
+El proyecto consiste en crear una versión básica del juego de cartas Coup usando Java y gestionado con Git/GitHub.
+La aplicación permitirá jugar una partida entre varios jugadores, usando una interfaz por consola.
+El proyecto se realizará mediante el flujo de trabajo ramas por funcionalidad.
+
+Limitaciones
+Generales
+No tendrá inteligencia artificial.
+No incluye GUI ni gráficos, solo consola.
+No se implementarán variantes ni expansiones del juego.
+Se usaran las reglas oficiales del juego (Coup.pdf) que se encuentran dentro de la rama de documentación.
+
+Partidas
+No abra espectadores en partidas.
+Solo el administrador puede comenzar la partida.
+Cada sala se disolverá cuando la partida empiece.
+Las partidas pueden iniciarse si tienen un mínimo de 3 jugadores y máximo 6.
+Si un cliente se desconecta o sale de la partida perderá automáticamente.
+El orden de los turnos se definirá de manera aleatoria al inicio del juego.
+Cada cliente tendrá un tiempo límite para ejecutar alguna acción dentro de la partida, en caso de que no se realice nada se hará una acción default.
+Los clientes dentro de una partida podrán hablar pero no podrán ejecutar acciones a no ser que estén dentro de su turno.
+Para que un cliente juegue una partida debe estar en una sala.
+
+Sala
+Un cliente podrá salirse de la sala en la cual se encuentre.
+Solo el administrador comenzar la partida dentro de la sala.
+Si el administrador sale de la partida se disolvera la sala.
+Un cliente podrá ser expulsado por el administrador de la sala y no podrá volver a entrar a ella.
+Cada cliente solo puede estar dentro de a una sala a la vez.
+
+Cliente
+Cada cliente debe iniciar sesión.
+Los clientes que no inicien sesión no podrán jugar.
+Los nombres de las sesiones no tendrán caracteres especiales, números al inicio o usar palabras reservadas (comandos).
+
+Servidor
+El servidor podrá ejecutar varias partidas a la vez.
+
+ESTE ES COUP PARA MACHOS Y HEMBRAS (HETEROSEXUALES) no cualquiera puede afrontarlo…
