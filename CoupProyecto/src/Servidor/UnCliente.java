@@ -1,6 +1,7 @@
 package Servidor;
 
 import Servicio.Mensaje;
+import Servicio.ServicioSesion;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -40,8 +41,15 @@ public class UnCliente implements Runnable {
     public void run() {
         try {
             this.salida.writeUTF("Conectado como: " + id);
+            ServicioSesion ss = new ServicioSesion(this);
             while (true) {
-                String mensajito = entrada.readUTF();
+                if (!ss.isSesionIniciada()) {
+                    ss.iniciarSesion();
+                }
+                while (true) {
+                    String mensajito = entrada.readUTF();
+                    new Mensaje();
+                }
             }
 
         } catch (IOException ex) {
