@@ -24,5 +24,13 @@ public class Sala {
     public void setIntegrantes(List<UnCliente> integrantes) {
         this.integrantes = integrantes;
     }
+
+    public Boolean getEnEspera() {
+        return enEspera;
+    }
+
+    public void setEnEspera(Boolean enEspera) {
+        this.enEspera = enEspera;
+    }
     
 }
