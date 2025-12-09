@@ -43,9 +43,9 @@ public class ServicioSesion {
         return false;
     }
 
-    public boolean yaLogueado(String nombreContra) {
-        for (Sesion sesion : sesionesActivas) {
-            if (sesion.getNombre().equals(nombreContra.split(" ")[0])) {
+    public boolean yaLogueado(String nombreContra) throws IOException {
+        for(UnCliente clientesito : ServidorMulti.clientes.values()){
+            if (clientesito.getId().equals(nombreContra.split(" ")[0])) {
                 return true;
             }
         }
@@ -53,17 +53,25 @@ public class ServicioSesion {
     }
 
     public void iniciarSesion() throws IOException {
-        String credenciales = pedirCredenciales();
-        if (!yaLogueado(credenciales)) {
-            sesionsita = new Sesion(credenciales.split(" ")[0], credenciales.split(" ")[1]);
-            sesionesActivas.add(sesionsita);
-            cliente.salida().writeUTF("inicio de sesion exitoso");
-            ServidorMulti.cambiarIdCliente(cliente.getId(), credenciales.split(" ")[0]);
-            return;
+        while (!sesionIniciada) {
+            String credenciales = pedirCredenciales();
+            if (credenciales == null) {
+                cliente.salida().writeUTF("datos invalidos");
+                continue;
+            }
+            if (!yaLogueado(credenciales)) {
+                sesionsita = new Sesion(credenciales.split(" ")[0], credenciales.split(" ")[1]);
+                sesionesActivas.add(sesionsita);
+                cliente.salida().writeUTF("inicio de sesion exitoso");
+                ServidorMulti.cambiarIdCliente(cliente.getId(), credenciales.split(" ")[0]);
+                sesionIniciada = true;
+                return;
+            }
+            cliente.salida().writeUTF("usuario ya logueado");
         }
-        cliente.salida().writeUTF("usuario ya logueado");
     }
-    public void cerrarSesion(){
+
+    public void cerrarSesion() {
         ServidorMulti.eliminarIdCliente(cliente.getId());
         sesionesActivas.remove(sesionsita);
         sesionIniciada = false;
