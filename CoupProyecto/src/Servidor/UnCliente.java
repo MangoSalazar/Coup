@@ -1,6 +1,7 @@
 package Servidor;
 
 import Servicio.Mensaje;
+import Servicio.ServicioSala;
 import Servicio.ServicioSesion;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -39,7 +40,7 @@ public class UnCliente implements Runnable {
                 }
                 while (true) {
                     String mensajito = entrada.readUTF();
-                    new Mensaje();
+                    new Mensaje(this, servicioSala).manejarEntrada(mensajito);
                 }
             }
 
