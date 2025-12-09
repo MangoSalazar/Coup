@@ -13,29 +13,20 @@ public class UnCliente implements Runnable {
     private final DataInputStream entrada;
     private final DataOutputStream salida;
     private String id;
+    private ServicioSala servicioSala; 
 
     public UnCliente(Socket socket, String id) throws IOException {
         this.socket = socket;
         this.salida = new DataOutputStream(socket.getOutputStream());
         this.entrada = new DataInputStream(socket.getInputStream());
         this.id = id;
+        this.servicioSala = new ServicioSala(this); 
     }
 
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getId() {
-        return this.id;
-    }
-
-    public DataInputStream entrada() {
-        return this.entrada;
-    }
-
-    public DataOutputStream salida() {
-        return this.salida;
-    }
+    public void setId(String id) { this.id = id; }
+    public String getId() { return this.id; }
+    public DataInputStream entrada() { return this.entrada; }
+    public DataOutputStream salida() { return this.salida; }
 
     @Override
     public void run() {
@@ -57,8 +48,7 @@ public class UnCliente implements Runnable {
         } finally {
             try {
                 socket.close();
-            } catch (IOException ignored) {
-            }
+            } catch (IOException ignored) {}
             ServidorMulti.eliminarIdCliente(id);
         }
     }
