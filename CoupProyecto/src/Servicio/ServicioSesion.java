@@ -53,17 +53,22 @@ public class ServicioSesion {
     }
 
     public void iniciarSesion() throws IOException {
-        String credenciales = pedirCredenciales();
-        if (!yaLogueado(credenciales)) {
-            sesionsita = new Sesion(credenciales.split(" ")[0], credenciales.split(" ")[1]);
-            sesionesActivas.add(sesionsita);
-            cliente.salida().writeUTF("inicio de sesion exitoso");
-            ServidorMulti.cambiarIdCliente(cliente.getId(), credenciales.split(" ")[0]);
+        while (!sesionIniciada) {
+            String credenciales = pedirCredenciales();
+            if (!yaLogueado(credenciales)) {
+                sesionsita = new Sesion(credenciales.split(" ")[0], credenciales.split(" ")[1]);
+                sesionesActivas.add(sesionsita);
+                cliente.salida().writeUTF("inicio de sesion exitoso");
+                ServidorMulti.cambiarIdCliente(cliente.getId(), credenciales.split(" ")[0]);
+                sesionIniciada = true;
+                return;
+            }
+            cliente.salida().writeUTF("usuario ya logueado");
             return;
         }
-        cliente.salida().writeUTF("usuario ya logueado");
     }
-    public void cerrarSesion(){
+
+    public void cerrarSesion() {
         ServidorMulti.eliminarIdCliente(cliente.getId());
         sesionesActivas.remove(sesionsita);
         sesionIniciada = false;
