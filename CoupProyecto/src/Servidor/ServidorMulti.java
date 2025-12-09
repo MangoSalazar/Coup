@@ -14,21 +14,27 @@ public class ServidorMulti {
         if (cliente != null) {
             cliente.setId(idNuevo);
             clientes.put(idNuevo, cliente);
-            broadcastGlobal("El usuario " + idAntiguo + " ahora es " + idNuevo);
+            broadcastGlobal("El usuario " + idAntiguo + " ahora es " + idNuevo, null);
         }
     }
 
     public static synchronized void eliminarIdCliente(String id) {
         clientes.remove(id);
-        broadcastGlobal("El usuario " + id + " ha salido.");
+        broadcastGlobal("El usuario " + id + " se ha desconectado.", null);
     }
 
-    // chat lobby
-    public static synchronized void broadcastGlobal(String mensaje) {
+    public static synchronized void broadcastGlobal(String mensaje, UnCliente remitente) {
         for (UnCliente c : clientes.values()) {
-            try {
-                c.salida().writeUTF(mensaje);
-            } catch (IOException e) {
+            
+            boolean esRemitente = (remitente != null && c.equals(remitente));
+            
+            boolean estaEnSala = c.isEnSala();
+            
+            if (!esRemitente && !estaEnSala) {
+                try {
+                    c.salida().writeUTF(mensaje);
+                } catch (IOException e) {
+                }
             }
         }
     }
@@ -36,15 +42,16 @@ public class ServidorMulti {
     public static void main(String[] args) throws IOException {
         ServerSocket servidorSocket = new ServerSocket(8080);
         contador = 0;
-        System.out.println("Servidor iniciado...");
+        System.out.println("Servidor iniciado en puerto 8080...");
+        
         while (true) {            
             Socket s = servidorSocket.accept();
-            UnCliente unCliente = new UnCliente(s,Integer.toString(contador));
+            UnCliente unCliente = new UnCliente(s, Integer.toString(contador));
             Thread hilo = new Thread(unCliente);
             clientes.put(Integer.toString(contador), unCliente);
             hilo.start();
-            System.out.println("Cliente conectado: "+contador);
+            System.out.println("Cliente conectado: " + contador);
             contador++;
         }
-    }
+    }//
 }
