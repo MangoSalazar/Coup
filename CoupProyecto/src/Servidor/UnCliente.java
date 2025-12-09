@@ -1,6 +1,7 @@
 package Servidor;
 
 import Servicio.Mensaje;
+import Servicio.ServicioSala;
 import Servicio.ServicioSesion;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -13,42 +14,38 @@ public class UnCliente implements Runnable {
     private final DataInputStream entrada;
     private final DataOutputStream salida;
     private String id;
+    private ServicioSala servicioSala; 
 
     public UnCliente(Socket socket, String id) throws IOException {
         this.socket = socket;
         this.salida = new DataOutputStream(socket.getOutputStream());
         this.entrada = new DataInputStream(socket.getInputStream());
         this.id = id;
+        this.servicioSala = new ServicioSala(this); 
     }
 
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getId() {
-        return this.id;
-    }
-
-    public DataInputStream entrada() {
-        return this.entrada;
-    }
-
-    public DataOutputStream salida() {
-        return this.salida;
-    }
+    public void setId(String id) { this.id = id; }
+    public String getId() { return this.id; }
+    public DataInputStream entrada() { return this.entrada; }
+    public DataOutputStream salida() { return this.salida; }
 
     @Override
     public void run() {
         try {
-            this.salida.writeUTF("Conectado como: " + id);
+            this.salida.writeUTF("Bienvenido " + id + ". Escribe para chatear o usa /crear, /unirse, /iniciar.");
             ServicioSesion ss = new ServicioSesion(this);
+            
             while (true) {
                 if (!ss.isSesionIniciada()) {
                     ss.iniciarSesion();
                 }
+                
                 while (true) {
-                    String mensajito = entrada.readUTF();
-                    new Mensaje();
+                    // leer la entrada
+                    String textoRecibido = entrada.readUTF();
+                    
+                    //dejar que la clase mensaje lo analice
+                    Mensaje.manejarEntrada(this, textoRecibido, servicioSala);
                 }
             }
 
@@ -57,8 +54,7 @@ public class UnCliente implements Runnable {
         } finally {
             try {
                 socket.close();
-            } catch (IOException ignored) {
-            }
+            } catch (IOException ignored) {}
             ServidorMulti.eliminarIdCliente(id);
         }
     }

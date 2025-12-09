@@ -1,26 +1,25 @@
 package Dominio;
  
 import Servidor.UnCliente;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
  
 public class Sala {
-    String nombre;
-    UnCliente administrado;
-    List<UnCliente> integrantes = new ArrayList<>();
-    Boolean lista = false;
+    private String nombre;
+    private UnCliente administrador;
+    private List<UnCliente> integrantes = new ArrayList<>();
+    
+    private Partida partida; 
+    private boolean enPartida = false;
  
-    public Sala(String nombre, UnCliente administrado) {
+    public Sala(String nombre, UnCliente administrador) {
         this.nombre = nombre;
-        this.administrado = administrado;
+        this.administrador = administrador;
     }
  
     public String obtenerNombre() {
         return nombre;
-    }
- 
-    public void ponerNombre(String nombre) {
-        this.nombre = nombre;
     }
  
     public List<UnCliente> obtenerIntegrantes() {
@@ -30,11 +29,30 @@ public class Sala {
     public void agregarIntegrante(UnCliente integrante) {
        integrantes.add(integrante);
     }
- 
-    public Boolean obtenerLista() {
-        return lista;
+    
+    public UnCliente getAdministrador() {
+        return administrador;
     }
-    public void asignarLista(Boolean enEspera) {
-        this.lista = lista;
+
+    public void broadcast(String mensaje) {
+        for (UnCliente integrante : integrantes) {
+            try {
+                integrante.salida().writeUTF(mensaje);
+            } catch (IOException e) {
+            }
+        }
+    }
+
+    public Partida getPartida() {
+        return partida;
+    }
+
+    public void setPartida(Partida partida) {
+        this.partida = partida;
+        this.enPartida = true;
+    }
+
+    public boolean estaEnPartida() {
+        return enPartida;
     }
 }
