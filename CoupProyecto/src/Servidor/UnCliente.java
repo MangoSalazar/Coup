@@ -1,6 +1,7 @@
 package Servidor;
 
 import Servicio.Mensaje;
+import Servicio.ServicioSala;
 import Servicio.ServicioSesion;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
