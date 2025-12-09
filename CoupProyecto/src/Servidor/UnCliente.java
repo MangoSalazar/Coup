@@ -1,7 +1,6 @@
 package Servidor;
 
 import Servicio.Mensaje;
-import Servicio.ServicioSala;
 import Servicio.ServicioSesion;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -32,20 +31,15 @@ public class UnCliente implements Runnable {
     @Override
     public void run() {
         try {
-            this.salida.writeUTF("Bienvenido " + id + ". Escribe para chatear o usa /crear, /unirse, /iniciar.");
+            this.salida.writeUTF("Conectado como: " + id);
             ServicioSesion ss = new ServicioSesion(this);
-            
             while (true) {
                 if (!ss.isSesionIniciada()) {
                     ss.iniciarSesion();
                 }
-                
                 while (true) {
-                    // leer la entrada
-                    String textoRecibido = entrada.readUTF();
-                    
-                    //dejar que la clase mensaje lo analice
-                    Mensaje.manejarEntrada(this, textoRecibido, servicioSala);
+                    String mensajito = entrada.readUTF();
+                    new Mensaje();
                 }
             }
 
