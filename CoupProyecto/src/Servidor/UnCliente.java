@@ -40,7 +40,7 @@ public class UnCliente implements Runnable {
                 }
                 while (true) {
                     String mensajito = entrada.readUTF();
-                    new Mensaje();
+                    new Mensaje(this, servicioSala).manejarEntrada(mensajito);
                 }
             }
 
