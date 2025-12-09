@@ -43,9 +43,9 @@ public class ServicioSesion {
         return false;
     }
 
-    public boolean yaLogueado(String nombreContra) {
-        for (Sesion sesion : sesionesActivas) {
-            if (sesion.getNombre().equals(nombreContra.split(" ")[0])) {
+    public boolean yaLogueado(String nombreContra) throws IOException {
+        for(UnCliente clientesito : ServidorMulti.clientes.values()){
+            if (clientesito.getId().equals(nombreContra.split(" ")[0])) {
                 return true;
             }
         }
@@ -55,6 +55,10 @@ public class ServicioSesion {
     public void iniciarSesion() throws IOException {
         while (!sesionIniciada) {
             String credenciales = pedirCredenciales();
+            if (credenciales == null) {
+                cliente.salida().writeUTF("datos invalidos");
+                continue;
+            }
             if (!yaLogueado(credenciales)) {
                 sesionsita = new Sesion(credenciales.split(" ")[0], credenciales.split(" ")[1]);
                 sesionesActivas.add(sesionsita);
@@ -64,7 +68,6 @@ public class ServicioSesion {
                 return;
             }
             cliente.salida().writeUTF("usuario ya logueado");
-            return;
         }
     }
 
