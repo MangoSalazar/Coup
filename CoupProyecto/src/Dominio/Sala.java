@@ -10,7 +10,7 @@ public class Sala {
     private UnCliente administrador;
     private List<UnCliente> integrantes = new ArrayList<>();
     
-    private Partida partida; 
+    private Partida partida;
     private boolean enPartida = false;
  
     public Sala(String nombre, UnCliente administrador) {
@@ -18,6 +18,21 @@ public class Sala {
         this.administrador = administrador;
     }
  
+    public void broadcast(String mensaje, UnCliente remitente) {
+        for (UnCliente integrante : integrantes) {
+            if (remitente == null || !integrante.equals(remitente)) {
+                try {
+                    integrante.salida().writeUTF(mensaje);
+                } catch (IOException e) {
+                }
+            }
+        }
+    }
+
+    public void broadcast(String mensaje) {
+        broadcast(mensaje, null);
+    }
+
     public String obtenerNombre() {
         return nombre;
     }
@@ -34,22 +49,13 @@ public class Sala {
         return administrador;
     }
 
-    public void broadcast(String mensaje) {
-        for (UnCliente integrante : integrantes) {
-            try {
-                integrante.salida().writeUTF(mensaje);
-            } catch (IOException e) {
-            }
-        }
-    }
-
     public Partida getPartida() {
         return partida;
     }
 
     public void setPartida(Partida partida) {
         this.partida = partida;
-        this.enPartida = true;
+        this.enPartida = true;//
     }
 
     public boolean estaEnPartida() {
