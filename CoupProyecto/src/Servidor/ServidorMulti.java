@@ -25,12 +25,13 @@ public class ServidorMulti {
 
     public static synchronized void broadcastGlobal(String mensaje, UnCliente remitente) {
         for (UnCliente c : clientes.values()) {
-            
+
             boolean esRemitente = (remitente != null && c.equals(remitente));
-            
             boolean estaEnSala = c.isEnSala();
-            
-            if (!esRemitente && !estaEnSala) {
+
+            boolean sesionIniciada = (c.getServicioSesion() != null && c.getServicioSesion().isSesionIniciada());
+
+            if (!esRemitente && !estaEnSala && sesionIniciada) {
                 try {
                     c.salida().writeUTF(mensaje);
                 } catch (IOException e) {
@@ -43,8 +44,8 @@ public class ServidorMulti {
         ServerSocket servidorSocket = new ServerSocket(8080);
         contador = 0;
         System.out.println("Servidor iniciado en puerto 8080...");
-        
-        while (true) {            
+
+        while (true) {
             Socket s = servidorSocket.accept();
             UnCliente unCliente = new UnCliente(s, Integer.toString(contador));
             Thread hilo = new Thread(unCliente);
@@ -53,5 +54,5 @@ public class ServidorMulti {
             System.out.println("Cliente conectado: " + contador);
             contador++;
         }
-    }//
+    }
 }
