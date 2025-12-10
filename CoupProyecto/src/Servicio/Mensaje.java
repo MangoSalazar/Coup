@@ -80,6 +80,7 @@ public class Mensaje {
             case "/extorsionar":
             case "/cambio":
             case "/revelar":
+            case "/seleccionar":
                 // Delegamos la lógica al servicio de partida
                 new ServicioPartida(cliente).manejarAccionDeJuego(mensaje, salaActual);
                 break;
