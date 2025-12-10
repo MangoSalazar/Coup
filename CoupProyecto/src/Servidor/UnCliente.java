@@ -67,7 +67,7 @@ public class UnCliente implements Runnable {
                 while (true) {
                     // leemos el mensaje y delegamos todo a la clase Mensaje
                     String textoRecibido = entrada.readUTF();
-                    Mensaje.manejarEntrada(this, textoRecibido, servicioSala);
+                    new Mensaje(this, servicioSala).manejarEntrada(textoRecibido);
                 }
             }
 

@@ -36,7 +36,7 @@ public class ServicioPartida {
         cliente.salida().writeUTF("¡No es tu turno! Espera a " + partida.obtenerJugadorTurno().getId());
     }
 
-    public void manejarInicioPartida(Sala sala) throws IOException {
+    public void manejarInicioPartida(UnCliente cliente,Sala sala) throws IOException {
         if (sala != null) {
             if (sala.getAdministrador().equals(cliente)) {
                 Partida nuevaPartida = new Partida(sala.obtenerIntegrantes());
