@@ -12,7 +12,7 @@ private static final String URL = "jdbc:sqlite:bd/usuarios.db";
     public static Connection conectar() {
         Connection conn = null;
         try {
-            File directorio = new File("db"); // Apunta a la carpeta 'db'
+            File directorio = new File("bd"); // Apunta a la carpeta 'db'
             if (!directorio.exists()) {
                 if (directorio.mkdirs()) { // Crea la carpeta si no existe
                     System.out.println("Carpeta 'db' creada exitosamente.");
