@@ -41,19 +41,19 @@ public class SesionDAO {
     /**
      * Valida login buscando por 'nombre_cliente' y comparando 'contra'.
      */
-    public Sesion validarLogin(Sesion sesion) {
+    public Sesion validarLogin(String nombre, String contra) {
         String sql = "SELECT * FROM clientes WHERE nombre_cliente = ?";
 
         try (Connection conn = ConexionDB.conectar();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setString(1, sesion.getNombre());
+            pstmt.setString(1, nombre);
             ResultSet rs = pstmt.executeQuery();
 
             if (rs.next()) {
                 // Recuperamos los datos usando los nombres EXACTOS de tu tabla
                 String contraGuardada = rs.getString("contra");
-                if (contraGuardada.equals(sesion.getContra())) {
+                if (contraGuardada.equals(contra)) {
                     return new Sesion(
                         rs.getInt("id"),
                         rs.getString("nombre_cliente"),

@@ -7,12 +7,13 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 public class ConexionDB {
-private static final String URL = "jdbc:sqlite:db/usuarios.db";
+private static final String URL = "jdbc:sqlite:bd/usuarios.db";
     public static Connection conectar() {
         Connection conn = null;
         try {
             conn = DriverManager.getConnection(URL);
             crearTablaSiNoExiste(conn);
+            System.out.println("Base de datos creada");
         } catch (SQLException e) {
             System.out.println("Error de conexión: " + e.getMessage());
         }
