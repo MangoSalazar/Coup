@@ -22,15 +22,26 @@ public class ServicioPartida {
         }
 
         Partida partida = sala.getPartida();
+        Jugador jugadorActual = partida.getJugador(cliente);
+
+        // --- MANEJO ESPECIAL: RESPUESTA DE VÍCTIMA (/revelar) ---
+        if (comando.startsWith("/revelar")) {
+            manejarRevelacion(comando, sala, partida);
+            return;
+        }
+
+        // --- VALIDACIONES DE TURNO ---
+        // Si hay una víctima pendiente, nadie puede jugar hasta que esa persona pierda su carta
+        if (partida.getJugadorVictima() != null) {
+            cliente.salida().writeUTF("¡Esperando a que " + partida.getJugadorVictima().getId() + " elija carta a perder!");
+            return;
+        }
 
         if (!partida.esTurnoDe(cliente)) {
             cliente.salida().writeUTF("¡No es tu turno! Espera a " + partida.obtenerJugadorTurno().getId());
             return;
         }
 
-        Jugador jugadorActual = partida.getJugador(cliente);
-
-        // 10 monedas obligan a hacer un golpe
         if (partida.debeDarGolpe(jugadorActual) && !comando.startsWith("/golpe")) {
             cliente.salida().writeUTF("¡Tienes 10 o más monedas! Debes usar: /golpe [jugador]");
             return;
@@ -54,52 +65,98 @@ public class ServicioPartida {
 
             case "/golpe":
                 if (procesarAtaque(partes, sala, partida, jugadorActual, "GOLPE")) {
-                    if (partida.accionGolpe(jugadorActual, obtenerVictima(partes, sala, partida))) {
-                        avanzarTurno(partida, sala);
+                    Jugador victima = obtenerVictima(partes, sala, partida);
+                    if (partida.iniciarGolpe(jugadorActual, victima)) {
+                        sala.broadcast("!!! " + victima.getId() + " ha recibido un GOLPE DE ESTADO.");
+                        solicitarCartaAPerder(victima); // Pedimos a la víctima que elija
                     } else {
                         cliente.salida().writeUTF("No tienes suficientes monedas (7).");
                     }
                 }
                 break;
 
-            // acciones de personajes
-            case "/impuestos": // Duque
+            case "/impuestos":
                 partida.accionImpuestos(jugadorActual);
                 sala.broadcast(">> " + cliente.getId() + " cobró IMPUESTOS (Duque) (+3 monedas).");
                 avanzarTurno(partida, sala);
                 break;
 
-            case "/asesinar": // Asesino
+            case "/asesinar":
                 if (procesarAtaque(partes, sala, partida, jugadorActual, "ASESINATO")) {
-                    if (partida.accionAsesinato(jugadorActual, obtenerVictima(partes, sala, partida))) {
-                        avanzarTurno(partida, sala);
+                    Jugador victima = obtenerVictima(partes, sala, partida);
+                    if (partida.iniciarAsesinato(jugadorActual, victima)) {
+                        sala.broadcast("!!! " + victima.getId() + " ha sido ASESINADO.");
+                        solicitarCartaAPerder(victima); // Pedimos a la víctima que elija
                     } else {
                         cliente.salida().writeUTF("No tienes suficientes monedas (3).");
                     }
                 }
                 break;
 
-            case "/extorsionar": // Capitán
+            case "/extorsionar":
                 if (procesarAtaque(partes, sala, partida, jugadorActual, "EXTORSIÓN")) {
                     partida.accionExtorsion(jugadorActual, obtenerVictima(partes, sala, partida));
                     avanzarTurno(partida, sala);
                 }
                 break;
 
-            case "/cambio": // Embajador
+            case "/cambio":
                 partida.accionCambio(jugadorActual);
                 sala.broadcast(">> " + cliente.getId() + " realizó un CAMBIO de cartas (Embajador).");
-                cliente.salida().writeUTF("Has cambiado tus cartas con el mazo.");
                 avanzarTurno(partida, sala);
                 break;
 
             default:
-                cliente.salida().writeUTF("Acción no válida. Revisa el menú.");
-                enviarMenuAcciones(cliente);
+                cliente.salida().writeUTF("Acción no válida.");
         }
     }
 
-    // Metodo para validar comandos completos
+    // Método auxiliar para avisar a la víctima que debe elegir
+    private void solicitarCartaAPerder(Jugador victima) throws IOException {
+        String cartas = "";
+        for (Carta c : victima.getMano()) {
+            if (!c.estaRevelada()) cartas += "[" + c.verNombre() + "] ";
+        }
+        victima.getCliente().salida().writeUTF("\n!!! HAS PERDIDO UNA INFLUENCIA !!!");
+        victima.getCliente().salida().writeUTF("Tus cartas vivas: " + cartas);
+        victima.getCliente().salida().writeUTF("Escribe: /revelar [NombreCarta] para continuar.");
+        victima.getCliente().salida().writeUTF("Ejemplo: /revelar DUQUE\n");
+    }
+
+    // Nuevo método para procesar la elección de la víctima
+    private void manejarRevelacion(String comando, Sala sala, Partida partida) throws IOException {
+        Jugador victima = partida.getJugadorVictima();
+
+        // Validar si hay alguien que deba revelar y si es quien envió el comando
+        if (victima == null || !victima.getCliente().equals(cliente)) {
+            cliente.salida().writeUTF("No tienes cartas pendientes por revelar.");
+            return;
+        }
+
+        String[] partes = comando.split(" ");
+        if (partes.length < 2) {
+            cliente.salida().writeUTF("Uso correcto: /revelar [NombreCarta]");
+            return;
+        }
+
+        String cartaElegida = partes[1];
+        if (partida.concretarPerdida(victima, cartaElegida)) {
+            sala.broadcast("☠ " + victima.getId() + " ha muerto una influencia: " + cartaElegida.toUpperCase());
+
+            if (!victima.estaVivo()) {
+                sala.broadcast("☠ JUGADOR ELIMINADO: " + victima.getId());
+            }
+
+            // Solo después de revelar, avanzamos el turno
+            avanzarTurno(partida, sala);
+        } else {
+            cliente.salida().writeUTF("Error: No tienes esa carta o ya está revelada. Intenta de nuevo.");
+        }
+    }
+
+    // ... (El resto de métodos procesarAtaque, obtenerVictima, avanzarTurno, etc. se mantienen igual)
+    // Asegúrate de incluir los métodos auxiliares que ya tenías en el código anterior.
+
     private boolean procesarAtaque(String[] partes, Sala sala, Partida partida, Jugador atacante, String nombreAccion) throws IOException {
         if (partes.length < 2) {
             cliente.salida().writeUTF("Falta el objetivo. Uso correcto: /" + nombreAccion.toLowerCase() + " [jugador]");
@@ -114,16 +171,9 @@ public class ServicioPartida {
             cliente.salida().writeUTF("No puedes atacarte a ti mismo.");
             return false;
         }
-
-        // Mensaje global de la acción
-        if (nombreAccion.equals("GOLPE")) {
-            sala.broadcast(">> " + atacante.getId() + " ejecutó " + nombreAccion + " contra " + victima.getId());
-        } else if (nombreAccion.equals("ASESINATO")) {
-            sala.broadcast(">> " + atacante.getId() + " quiere ASESINAR a " + victima.getId() + " (-3 monedas)");
-        } else if (nombreAccion.equals("EXTORSIÓN")) {
+        if (nombreAccion.equals("EXTORSIÓN")) {
             sala.broadcast(">> " + atacante.getId() + " quiere EXTORSIONAR a " + victima.getId());
         }
-
         return true;
     }
 
@@ -140,11 +190,9 @@ public class ServicioPartida {
     private void avanzarTurno(Partida partida, Sala sala) throws IOException {
         partida.siguienteTurno();
         Jugador siguiente = partida.obtenerJugadorTurno();
-
         sala.broadcast("------------------------------------------------");
         sala.broadcast("Turno de: " + siguiente.getId() + " | Monedas: " + siguiente.getMonedas());
 
-        // Info privada para el jugador actual
         StringBuilder cartas = new StringBuilder();
         for(Carta c : siguiente.getMano()) {
             if(!c.estaRevelada()) cartas.append("[").append(c.verNombre()).append("] ");
@@ -170,15 +218,15 @@ public class ServicioPartida {
 
     private void enviarMenuAcciones(UnCliente cliente) throws IOException {
         String menu = "\n" +
-                "--- ACCIONES DISPONIBLES (Puedes mentir) ---\n" +
-                "1. /ingresos       -> +1 moneda (Seguro)\n" +
-                "2. /ayuda          -> +2 monedas (Bloqueable por Duque)\n" +
-                "3. /impuestos      -> +3 monedas (Requiere Duque)\n" +
-                "4. /asesinar [jug] -> Elimina carta, costo 3 (Requiere Asesino)\n" +
-                "5. /extorsionar [jug] -> Roba 2 monedas (Requiere Capitán)\n" +
-                "6. /cambio         -> Cambia cartas (Requiere Embajador)\n" +
-                "7. /golpe [jug]    -> Elimina carta, costo 7 (Imparable)\n" +
-                "--------------------------------------------\n";
+                "--- ACCIONES DISPONIBLES ---\n" +
+                "1. /ingresos       -> +1 moneda\n" +
+                "2. /ayuda          -> +2 monedas\n" +
+                "3. /impuestos      -> +3 monedas (Duque)\n" +
+                "4. /asesinar [jug] -> Costo 3 (Asesino)\n" +
+                "5. /extorsionar [jug] -> Roba 2 (Capitán)\n" +
+                "6. /cambio         -> Cartas (Embajador)\n" +
+                "7. /golpe [jug]    -> Costo 7\n" +
+                "----------------------------\n";
         cliente.salida().writeUTF(menu);
     }
 }
