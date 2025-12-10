@@ -1,6 +1,7 @@
 
 package Datos;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -11,6 +12,12 @@ private static final String URL = "jdbc:sqlite:bd/usuarios.db";
     public static Connection conectar() {
         Connection conn = null;
         try {
+            File directorio = new File("db"); // Apunta a la carpeta 'db'
+            if (!directorio.exists()) {
+                if (directorio.mkdirs()) { // Crea la carpeta si no existe
+                    System.out.println("Carpeta 'db' creada exitosamente.");
+                }
+            }
             conn = DriverManager.getConnection(URL);
             crearTablaSiNoExiste(conn);
             System.out.println("Base de datos creada");
