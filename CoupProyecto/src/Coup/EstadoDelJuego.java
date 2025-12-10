@@ -3,55 +3,58 @@ package Coup;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Stack;
 
 public class EstadoDelJuego {
-    private List<Jugador> jugadores = new ArrayList<>();
-    private List<Carta> baraja = new ArrayList<>();
-    private int jugadorActual = 0;
+    private List<Jugador> jugadores;
+    private Stack<Carta> mazo;
+    private int turnoActual;
 
     public EstadoDelJuego(List<Jugador> jugadores) {
         this.jugadores = jugadores;
-        // Crear baraja
+        this.turnoActual = 0;
+        this.mazo = new Stack<>();
+        inicializarMazo();
+        repartirCartas();
+    }
+
+    private void inicializarMazo() {
         for (Rol rol : Rol.values()) {
-            baraja.add(new Carta(rol));
-            baraja.add(new Carta(rol));
-            baraja.add(new Carta(rol));
+            for (int i = 0; i < 3; i++) {
+                mazo.push(new Carta(rol));
+            }
         }
+        Collections.shuffle(mazo);
+    }
 
-        Collections.shuffle(baraja);
-
-        // Repartir 2 cartas por jugador
-        for (Jugador jugador : jugadores) {
-            jugador.agregarCarta(baraja.remove(0));
-            jugador.agregarCarta(baraja.remove(0));
+    private void repartirCartas() {
+        for (Jugador j : jugadores) {
+            j.recibirCarta(tomarCartaDelMazo());
+            j.recibirCarta(tomarCartaDelMazo());
         }
+    }
+
+    public Carta tomarCartaDelMazo() {
+        if (mazo.isEmpty()) return null;
+        return mazo.pop();
+    }
+
+    public void devolverCartaAlMazo(Carta carta) {
+        mazo.push(carta);
+        Collections.shuffle(mazo);
     }
 
     public Jugador obtenerJugadorActual() {
-        return jugadores.get(jugadorActual);
-    }
-
-    public void siguienteTurno() {
-        do {
-            jugadorActual = (jugadorActual + 1) % jugadores.size();
-        } while (!jugadores.get(jugadorActual).estaVivo()); // Saltar jugadores muertos
+        return jugadores.get(turnoActual);
     }
 
     public List<Jugador> obtenerJugadores() {
         return jugadores;
     }
 
-    public Carta tomarCartaDelMazo() {
-        if (!baraja.isEmpty()) {
-            return baraja.remove(0);
-        }
-        return null;
-    }
-
-    public void devolverCartaAlMazo(Carta carta) {
-        if (carta != null) {
-            baraja.add(carta);
-            Collections.shuffle(baraja);
-        }
+    public void siguienteTurno() {
+        do {
+            turnoActual = (turnoActual + 1) % jugadores.size();
+        } while (!jugadores.get(turnoActual).estaVivo());
     }
 }

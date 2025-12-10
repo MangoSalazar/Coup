@@ -1,73 +1,111 @@
 package Coup;
 
+import Servidor.UnCliente;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Jugador {
-
-    private String nombre;
+    private UnCliente cliente;
+    private String nombreLocal; // Para cuando jugamos en local sin servidor
+    private List<Carta> mano;
     private int monedas;
-    private List<Carta> cartas = new ArrayList<>();
+    private boolean vivo;
+//servidor
+    public Jugador(UnCliente cliente) {
+        this.cliente = cliente;
+        this.mano = new ArrayList<>();
+        this.monedas = 2;
+        this.vivo = true;
+    }
 
+    //local
     public Jugador(String nombre) {
-        this.nombre = nombre;
-        this.monedas = 2; // Inician con 2 monedas
+        this.nombreLocal = nombre;
+        this.cliente = null; // No hay conexión real
+        this.mano = new ArrayList<>();
+        this.monedas = 2;
+        this.vivo = true;
     }
 
-    public void agregarCarta(Carta carta) {
-        cartas.add(carta);
+    //identificacion
+    public String getId() {
+        if (cliente != null) {
+            return cliente.getId();
+        }
+        return nombreLocal; // Devuelve el nombre local si no hay cliente
     }
 
+    // Método identifiacion local
     public String obtenerNombre() {
-        return nombre;
+        return getId();
     }
 
-    public int obtenerMonedas() {
+    public UnCliente getCliente() {
+        return cliente;
+    }
+
+    public List<Carta> getMano() {
+        return mano;
+    }
+
+    public int getMonedas() {
         return monedas;
     }
 
-    public void agregarMonedas(int monedas) {
-        this.monedas += monedas;
+    public void modificarMonedas(int cantidad) {
+        this.monedas += cantidad;
+        if (this.monedas < 0) this.monedas = 0;
     }
 
-    public void quitarMonedas(int monedas) {
-        this.monedas -= monedas;
-        if (this.monedas < 0) {
-            this.monedas = 0;
+    public void recibirCarta(Carta c) {
+        mano.add(c);
+    }
+
+    public int getInfluenciaActiva() {
+        int count = 0;
+        for (Carta c : mano) {
+            if (!c.estaRevelada()) count++;
         }
-    }
-
-    public List<Carta> obtenerCartas() {
-        return cartas;
-    }
-
-    public void perderCarta(int indiceCarta) {
-        if (indiceCarta >= 0 && indiceCarta < cartas.size()) {
-            Carta c = cartas.get(indiceCarta);
-            if (c.estaViva()) {
-                c.matar();
-            } else {
-                for (Carta otra : cartas) {
-                    if (otra.estaViva()) {
-                        otra.matar();
-                        break;
-                    }
-                }
-            }
-        }
+        return count;
     }
 
     public boolean estaVivo() {
-        for (Carta c : cartas) {
-            if (c.estaViva()) {
-                return true;
+        return getInfluenciaActiva() > 0;
+    }
+//logica online
+    public void perderInfluencia() {
+        for (Carta c : mano) {
+            if (!c.estaRevelada()) {
+                c.revelar();
+                break;
             }
         }
-        return false;
+        checkVidas();
+    }
+//logica local
+    public void perderCarta(int indice) {
+        if (indice >= 0 && indice < mano.size()) {
+            Carta c = mano.get(indice);
+            if (!c.estaRevelada()) {
+                c.revelar();
+            } else {
+                // Si ya estaba revelada, intenta perder otra
+                perderInfluencia();
+            }
+        } else {
+            perderInfluencia();
+        }
+        checkVidas();
+    }
+
+    private void checkVidas() {
+        if (getInfluenciaActiva() == 0) {
+            this.vivo = false;
+        }
     }
 
     @Override
     public String toString() {
-        return nombre + " [Monedas: " + monedas + "] Cartas: " + cartas;
+        return getId();
     }
 }

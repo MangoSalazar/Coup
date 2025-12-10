@@ -1,80 +1,83 @@
 package Coup;
 
+import java.util.Collections;
 import java.util.List;
 
 public class Accion {
-    private Jugador jugador;
-    private Jugador jugadorObjetivo;
-    private EstadoDelJuego estadoJuego;
+    private Jugador actor;
+    private Jugador objetivo;
+    private EstadoDelJuego juego;
 
-    public Accion(Jugador jugador, EstadoDelJuego estadoJuego) {
-        this.jugador = jugador;
-        this.estadoJuego = estadoJuego;
+    public Accion(Jugador actor, Jugador objetivo, EstadoDelJuego juego) {
+        this.actor = actor;
+        this.objetivo = objetivo;
+        this.juego = juego;
     }
 
-    public Accion(Jugador jugador, Jugador jugadorObjetivo, EstadoDelJuego estadoJuego) {
-        this.jugador = jugador;
-        this.jugadorObjetivo = jugadorObjetivo;
-        this.estadoJuego = estadoJuego;
+    public void ingreso() {
+        actor.modificarMonedas(1);
+        System.out.println(actor.obtenerNombre() + " tomó Ingresos.");
     }
 
-    public String ingreso(){
-        jugador.agregarMonedas(1);
-        return jugador.obtenerNombre() + " tomó Ingreso (+1 moneda).";
+    public void ayudaExtrangera() {
+        actor.modificarMonedas(2);
+        System.out.println(actor.obtenerNombre() + " tomó Ayuda Extranjera.");
     }
 
-    public String ayudaExtrangera(){
-        jugador.agregarMonedas(2);
-        return jugador.obtenerNombre() + " pidió Ayuda Extranjera (+2 monedas).";
-    }
-
-    public String golpe(int cartaAEliminar){
-        if (jugador.obtenerMonedas() >= 7) {
-            jugador.quitarMonedas(7);
-            jugadorObjetivo.perderCarta(cartaAEliminar);
-            return "¡GOLPE DE ESTADO! " + jugador.obtenerNombre() + " atacó a " + jugadorObjetivo.obtenerNombre();
+    public void golpe(int cartaAfectada) {
+        if (actor.getMonedas() >= 7) {
+            actor.modificarMonedas(-7);
+            objetivo.perderCarta(cartaAfectada);
+            System.out.println(actor.obtenerNombre() + " dio un Golpe de Estado a " + objetivo.obtenerNombre());
         } else {
-            return "ERROR: No tienes 7 monedas para el Golpe.";
+            System.out.println("No tienes suficientes monedas para un Golpe (Necesitas 7).");
         }
     }
 
-    public String impuestos(){
-        jugador.agregarMonedas(3);
-        return jugador.obtenerNombre() + " cobró Impuestos como Duque (+3 monedas).";
+    public void impuestos() {
+        actor.modificarMonedas(3);
+        System.out.println(actor.obtenerNombre() + " cobró Impuestos (como Duque).");
     }
 
-    public String asesinato(int cartaAEliminar){
-        if (jugador.obtenerMonedas() >= 3) {
-            jugador.quitarMonedas(3);
-            jugadorObjetivo.perderCarta(cartaAEliminar);
-            return "¡ASESINATO! " + jugador.obtenerNombre() + " pagó para eliminar carta de " + jugadorObjetivo.obtenerNombre();
+    public void asesinato(int cartaAfectada) {
+        if (actor.getMonedas() >= 3) {
+            actor.modificarMonedas(-3);
+            objetivo.perderCarta(cartaAfectada);
+            System.out.println(actor.obtenerNombre() + " asesinó a un personaje de " + objetivo.obtenerNombre());
         } else {
-            return "ERROR: No tienes 3 monedas para Asesinato.";
+            System.out.println("No tienes suficientes monedas para Asesinato (Necesitas 3).");
         }
     }
 
-    public String extorision(){
-        int monto = Math.min(2, jugadorObjetivo.obtenerMonedas());
-        jugadorObjetivo.quitarMonedas(monto);
-        jugador.agregarMonedas(monto);
-        return jugador.obtenerNombre() + " extorsionó (Capitán) a " + jugadorObjetivo.obtenerNombre() + " robando " + monto + " monedas.";
+    public void extorision() {
+        int robo = Math.min(2, objetivo.getMonedas());
+        objetivo.modificarMonedas(-robo);
+        actor.modificarMonedas(robo);
+        System.out.println(actor.obtenerNombre() + " extorsionó " + robo + " monedas a " + objetivo.obtenerNombre());
     }
 
-    public String cambio(){
-        Carta c1 = estadoJuego.tomarCartaDelMazo();
-        Carta c2 = estadoJuego.tomarCartaDelMazo();
-        if(c1 != null) jugador.agregarCarta(c1);
-        if(c2 != null) jugador.agregarCarta(c2);
+    public void cambio() {
+        System.out.println(actor.obtenerNombre() + " cambia sus cartas con el mazo (Embajador).");
 
-        devolverCartasExceso();
-        return jugador.obtenerNombre() + " realizó Cambio de cartas (Embajador).";
-    }
+        // tomar cartas del mazo
+        Carta c1 = juego.tomarCartaDelMazo();
+        Carta c2 = juego.tomarCartaDelMazo();
 
-    private void devolverCartasExceso() {
-        List<Carta> mano = jugador.obtenerCartas();
-        while (mano.size() > 2) {
-            Carta c = mano.remove(mano.size() - 1);
-            estadoJuego.devolverCartaAlMazo(c);
+        if (c1 != null) actor.recibirCarta(c1);
+        if (c2 != null) actor.recibirCarta(c2);
+
+        // obtener la mano
+        List<Carta> mano = actor.getMano();
+        Collections.shuffle(mano);
+
+//devolver sobrantes
+        int aDevolver = (c1 != null ? 1 : 0) + (c2 != null ? 1 : 0);
+
+        for(int i = 0; i < aDevolver; i++) {
+            if (!mano.isEmpty()) {
+                Carta cartaDevuelta = mano.remove(0);
+                juego.devolverCartaAlMazo(cartaDevuelta);
+            }
         }
     }
 }

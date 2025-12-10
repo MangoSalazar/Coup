@@ -1,6 +1,5 @@
 package Servicio;
 
-import Dominio.Partida;
 import Dominio.Sala;
 import Servidor.ServidorMulti;
 import Servidor.UnCliente;
@@ -32,7 +31,6 @@ public class Mensaje {
     private void procesarChat(String mensaje) {
         Sala salaActual = ss.obtenerSalaDelCliente();
 
-        // Si está en sala, solo envía a la sala. Si no, al lobby.
         if (salaActual != null) {
             String formato = "[" + cliente.getId() + "]: " + mensaje;
             salaActual.broadcast(formato, cliente);
@@ -44,13 +42,12 @@ public class Mensaje {
     }
 
     private void procesarComando(String mensaje) throws IOException {
-        String[] partes = mensaje.trim().split("\\s+"); // Mejor manejo de espacios
+        String[] partes = mensaje.trim().split("\\s+");
         String comando = partes[0];
         Sala salaActual = ss.obtenerSalaDelCliente();
 
         switch (comando) {
             case "/crear":
-                // Crear sala y cambiar estado
                 ss.crear(cliente);
                 break;
             case "/unirse":
@@ -64,7 +61,6 @@ public class Mensaje {
                 ss.ver();
                 break;
             case "/salir":
-                // Lógica simple para salir de sala si está en una (pendiente implementar lógica completa en ServicioSala)
                 if (salaActual != null) {
                     cliente.salida().writeUTF("Comando salir no implementado completamente.");
                 } else {
@@ -74,29 +70,42 @@ public class Mensaje {
             case "/iniciar":
                 new ServicioPartida(cliente).manejarInicioPartida(cliente, salaActual);
                 break;
-            // Agregamos comandos de ayuda para ver el menú nuevamente
-            case "/menu":
+
+                //acciones de juego
+            case "/ingresos":
             case "/ayuda":
-            case "/comandos":
+            case "/golpe":
+            case "/impuestos":
+            case "/asesinar":
+            case "/extorsionar":
+            case "/cambio":
+                // Delegamos la lógica al servicio de partida
+                new ServicioPartida(cliente).manejarAccionDeJuego(mensaje, salaActual);
+                break;
+
+            case "/menu":
                 enviarBienvenida(cliente);
                 break;
+
             default:
-                cliente.salida().writeUTF("Comando desconocido. Escribe /ayuda para ver los comandos.");
+                cliente.salida().writeUTF("Comando desconocido. Escribe /menu para ver los comandos.");
         }
     }
 
-    // NUEVO MÉTODO: Mensaje de bienvenida con lista de comandos
     public static void enviarBienvenida(UnCliente cliente) throws IOException {
         String menu = "\n" +
                 "=========================================\n" +
                 "      BIENVENIDO A COUP - LOBBY\n" +
                 "=========================================\n" +
-                "Comandos disponibles:\n" +
-                " /crear             -> Crea una sala nueva con tu ID.\n" +
-                " /unirse [nombre]   -> Únete a una sala existente.\n" +
-                " /ver               -> Ver lista de salas disponibles.\n" +
-                " /iniciar           -> (Solo Admin) Inicia la partida en la sala.\n" +
-                " /salir             -> Salir de la sala actual.\n" +
+                "Comandos de Sala:\n" +
+                " /crear             -> Crea una sala nueva.\n" +
+                " /unirse [nombre]   -> Únete a una sala.\n" +
+                " /ver               -> Ver salas disponibles.\n" +
+                " /iniciar           -> (Admin) Inicia la partida.\n" +
+                "\n" +
+                "Comandos de Juego (Solo en partida):\n" +
+                " /ingresos, /ayuda, /golpe\n" +
+                " /impuestos, /asesinar, /extorsionar, /cambio\n" +
                 "=========================================\n";
         cliente.salida().writeUTF(menu);
     }
