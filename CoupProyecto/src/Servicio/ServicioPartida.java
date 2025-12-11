@@ -17,6 +17,55 @@ public class ServicioPartida {
         this.cliente = cliente;
     }
 
+    public void manejarSalida(Sala sala) throws IOException {
+        Partida partida = sala.getPartida();
+        Jugador jugador = partida.getJugador(cliente);
+
+        if (jugador == null || !jugador.estaVivo()) {
+            cliente.salida().writeUTF("Ya no estás jugando activamente.");
+            return;
+        }
+
+        for (Carta c : jugador.getMano()) {
+            c.revelar();
+        }
+        sala.broadcast( cliente.getId() + " se ha RENDIDO (/salir) y ha sido ELIMINADO.");
+
+        boolean eraSuTurno = partida.esTurnoDe(cliente);
+
+        if (partida.getJugadorVictima() != null && partida.getJugadorVictima().equals(jugador)) {
+            partida.setJugadorVictima(null);
+            partida.setEjecucionAsesinatoPendiente(false);
+        }
+
+        if (partida.getJugadorIntercambio() != null && partida.getJugadorIntercambio().equals(jugador)) {
+            partida.cancelarIntercambio();
+        }
+
+        if (partida.hayAccionPendiente()) {
+            if (jugador.equals(partida.getActorPendiente()) || jugador.equals(partida.getObjetivoPendiente())) {
+                sala.broadcast("La acción pendiente se cancela por abandono del jugador.");
+                partida.limpiarAccionPendiente();
+                partida.cancelarTemporizador();
+
+                if (!eraSuTurno) {
+                    avanzarTurno(partida, sala);
+                    return;
+                }
+            }
+        }
+
+        if (partida.obtenerGanador() != null) {
+            avanzarTurno(partida, sala);
+            return;
+        }
+
+        if (eraSuTurno) {
+            partida.cancelarTemporizador();
+            avanzarTurno(partida, sala);
+        }
+    }
+
     public void manejarAccionDeJuego(String comandoOriginal, Sala sala) throws IOException {
         if (sala == null || !sala.estaEnPartida()) {
             cliente.salida().writeUTF("Error: No hay partida activa.");
@@ -236,7 +285,7 @@ public class ServicioPartida {
             partida.cambiarCartaPorGanarDesafio(actor, cartaRequerida);
 
             if ("BLOQUEO_CONDESA".equals(partida.getAccionPendiente())) {
-                sala.broadcast("🛡️ Asesinato BLOQUEADO.");
+                sala.broadcast("Asesinato BLOQUEADO.");
                 aplicarPenalizacion(sala, partida, desafiante);
             } else {
                 if ("ASESINATO".equals(partida.getAccionPendiente())
@@ -255,7 +304,7 @@ public class ServicioPartida {
             aplicarPenalizacion(sala, partida, actor);
 
             if (eraBloqueo && actor.estaVivo()) {
-                sala.broadcast("🔪 Bloqueo fallido: ASESINATO procede.");
+                sala.broadcast("bloqueo fallido: ASESINATO procede.");
                 partida.setEjecucionAsesinatoPendiente(true);
             }
         }
@@ -323,10 +372,10 @@ public class ServicioPartida {
 
             if (ultimaCarta != null) {
                 partida.concretarPerdida(perdedor, ultimaCarta);
-                sala.broadcast( perdedor.getId() + " pierde su última carta: " + ultimaCarta);
+                sala.broadcast(perdedor.getId() + " pierde su última carta: " + ultimaCarta);
             }
 
-            sala.broadcast( perdedor.getId() + " ha sido ELIMINADO.");
+            sala.broadcast(perdedor.getId() + " ha sido ELIMINADO.");
             partida.setEjecucionAsesinatoPendiente(false);
             partida.setJugadorVictima(null);
 
@@ -355,7 +404,7 @@ public class ServicioPartida {
                 return;
             }
 
-            if (!victima.estaVivo()) sala.broadcast("ELIMINADO: " + victima.getId());
+            if (!victima.estaVivo()) sala.broadcast("☠ ELIMINADO: " + victima.getId());
             if (partida.getJugadorIntercambio() == null) avanzarTurno(partida, sala);
         } else {
             cliente.salida().writeUTF("Carta no válida.");
@@ -364,30 +413,22 @@ public class ServicioPartida {
 
     private void avanzarTurno(Partida partida, Sala sala) throws IOException {
         Jugador ganador = partida.obtenerGanador();
-
         if (ganador != null) {
             sala.broadcast("\n*** ¡GANADOR: " + ganador.getId().toUpperCase() + "! ***");
             sala.broadcast(">>> Regresando al LOBBY en 10 segundos... <<<");
-
             partida.cancelarTemporizador();
-
             new java.util.Timer().schedule(new TimerTask() {
                 @Override
                 public void run() {
                     try {
                         sala.setPartida(null);
                         sala.broadcast("\n=== HAS REGRESADO AL LOBBY ===");
-                        for (UnCliente c : sala.obtenerIntegrantes()) {
-                            Mensaje.enviarBienvenida(c);
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
+                        for (UnCliente c : sala.obtenerIntegrantes()) Mensaje.enviarBienvenida(c);
+                    } catch (IOException e) { e.printStackTrace(); }
                 }
-            }, 10000); // 10 segundos
+            }, 10000);
             return;
         }
-
         partida.siguienteTurno();
         Jugador siguiente = partida.obtenerJugadorTurno();
         sala.broadcast("------------------------------------------------");
@@ -415,7 +456,7 @@ public class ServicioPartida {
                             }
                         } else avanzarTurno(partida, sala);
                     } else {
-                        sala.broadcast("\nTIEMPO -> INGRESOS.");
+                        sala.broadcast("\n⌛ TIEMPO -> INGRESOS.");
                         partida.accionIngresos(jugador);
                         avanzarTurno(partida, sala);
                     }
@@ -429,7 +470,7 @@ public class ServicioPartida {
             @Override
             public void run() {
                 try {
-                    sala.broadcast("\nTIEMPO -> Acción procede.");
+                    sala.broadcast("\n⌛ TIEMPO -> Acción procede.");
                     if ("BLOQUEO_CONDESA".equals(partida.getAccionPendiente())) {
                         partida.limpiarAccionPendiente();
                         avanzarTurno(partida, sala);
@@ -459,14 +500,14 @@ public class ServicioPartida {
 
     private void enviarMenuAcciones(UnCliente cliente) throws IOException {
         String menu = "\n" +
-                "--- ACCIONES ---\n" +
-                "1. /ingresos       -> +1 moneda\n" +
-                "2. /ayuda          -> +2 monedas\n" +
-                "3. /impuestos      -> +3 monedas (Duque)\n" +
-                "4. /asesinar [jug] -> Costo 3 (Asesino)\n" +
-                "5. /extorsionar [jug] -> Roba 2 (Capitán)\n" +
-                "6. /cambio         -> Cartas (Embajador)\n" +
-                "7. /golpe [jug]    -> Costo 7\n" +
+                "--- ACCIONES (Escribe el número) ---\n" +
+                " [1] Ingresos (+1)\n" +
+                " [2] Ayuda Exterior (+2)\n" +
+                " [3] Impuestos (+3, Duque)\n" +
+                " [4] Asesinar [jug] (3$, Asesino)\n" +
+                " [5] Extorsionar [jug] (Capitán)\n" +
+                " [6] Cambio (Embajador)\n" +
+                " [7] Golpe [jug] (7$)\n" +
                 "----------------\n";
         cliente.salida().writeUTF(menu);
     }

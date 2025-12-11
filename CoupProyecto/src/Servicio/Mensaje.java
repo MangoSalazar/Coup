@@ -71,12 +71,22 @@ public class Mensaje {
                 new ServicioPartida(cliente).manejarAccionDeJuego(mensaje, salaActual);
                 break;
 
+            case "/salir":
+                if (salaActual != null && salaActual.estaEnPartida()) {
+                    new ServicioPartida(cliente).manejarSalida(salaActual);
+                } else if (salaActual != null) {
+                    ss.salir(cliente.getId());
+                } else {
+                    cliente.salida().writeUTF("No estás en ninguna sala.");
+                }
+                break;
+
             case "/menu": enviarBienvenida(cliente); break;
             default: cliente.salida().writeUTF("Comando desconocido. Escribe /menu.");
         }
     }
 
     public static void enviarBienvenida(UnCliente cliente) throws IOException {
-        cliente.salida().writeUTF("\n=== COUP LOBBY ===\n /crear, /unirse [sala], /iniciar\n");
+        cliente.salida().writeUTF("\n=== COUP LOBBY ===\n /crear, /unirse [sala], /iniciar, /salir\n");
     }
 }
