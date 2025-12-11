@@ -48,7 +48,9 @@ public class ServicioSesion {
     public boolean yaConectadoOnline(String nombre) {
         for (UnCliente c : ServidorMulti.clientes.values()) {
             // Ignoramos al cliente actual (que tiene ID numérico temporal)
-            if (c.equals(cliente)) continue;
+            if (c.equals(cliente)) {
+                continue;
+            }
 
             // Verificamos si alguien más ya tiene ese ID (ignora mayúsculas)
             if (c.getId().equalsIgnoreCase(nombre)) {
@@ -58,7 +60,14 @@ public class ServicioSesion {
         return false;
     }
 
-    public void iniciarSesion() throws IOException {
+    public void cerrarSesion() throws IOException {
+        sesionIniciada = false;
+        sesionsita = null;
+        cliente.salida().writeUTF("sesion: "+sesionIniciada);
+        ServidorMulti.cambiarIdCliente(cliente.getId(), "invitado");
+    }
+
+    public boolean iniciarSesion() throws IOException {
         while (!sesionIniciada) {
             String credenciales = pedirCredenciales();
 
@@ -81,18 +90,20 @@ public class ServicioSesion {
                 // El usuario EXISTE -> Intentar Login
                 if (sesionDAO.validarUsuario(usuario, contra)) {
                     loguearExitoso(usuario, contra, "¡Bienvenido de vuelta, " + usuario + "!");
-                } else {
-                    cliente.salida().writeUTF("Error: Contraseña incorrecta.");
+                    return true;
                 }
-            } else {
-                // El usuario NO EXISTE -> Registrar automáticamente
-                if (sesionDAO.registrarUsuario(usuario, contra)) {
-                    loguearExitoso(usuario, contra, "Cuenta creada exitosamente. Bienvenido " + usuario + ".");
-                } else {
-                    cliente.salida().writeUTF("Error al crear la cuenta. Intenta otro nombre.");
-                }
+                cliente.salida().writeUTF("Error: Contraseña incorrecta.");
+                continue;
             }
+            // El usuario NO EXISTE -> Registrar automáticamente
+            if (sesionDAO.registrarUsuario(usuario, contra)) {
+                loguearExitoso(usuario, contra, "Cuenta creada exitosamente. Bienvenido " + usuario + ".");
+                return true;
+            }
+            cliente.salida().writeUTF("Error al crear la cuenta. Intenta otro nombre.");
+
         }
+        return false;
     }
 
     private void loguearExitoso(String usuario, String contra, String mensaje) throws IOException {

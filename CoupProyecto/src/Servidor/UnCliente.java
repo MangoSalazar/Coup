@@ -63,26 +63,23 @@ public class UnCliente implements Runnable {
     @Override
     public void run() {
         try {
-            // Eliminamos el mensaje de bienvenida inicial aquí porque el usuario aún no se loguea.
-
             while (true) {
-                if (!servicioSesion.isSesionIniciada()) {
-                    servicioSesion.iniciarSesion();
 
-                    // VALIDACIÓN: Enviar bienvenida SOLO cuando ya inició sesión
-                    if (servicioSesion.isSesionIniciada()) {
+                // SI NO HAY SESIÓN, REGRESAR A LOGIN INMEDIATAMENTE
+                if (!servicioSesion.isSesionIniciada()) {
+
+                    // NO MANDES NADA AQUÍ, SOLO LOGIN DIRECTO
+                    if (servicioSesion.iniciarSesion()) {
                         Mensaje.enviarBienvenida(this);
                     }
+                    continue;
                 }
 
-                while (true) {
-                    // Si se cierra sesión por alguna razón, salimos al loop de login
-                    if (!servicioSesion.isSesionIniciada()) break;
+                // SOLO SI LA SESIÓN ESTÁ INICIADA
+                String textoRecibido = entrada.readUTF();
 
-                    // leemos el mensaje y delegamos todo a la clase Mensaje
-                    String textoRecibido = entrada.readUTF();
-                    new Mensaje(this, servicioSala).manejarEntrada(textoRecibido);
-                }
+                // Maneja comandos
+                new Mensaje(this, servicioSala).manejarEntrada(textoRecibido);
             }
 
         } catch (IOException ex) {

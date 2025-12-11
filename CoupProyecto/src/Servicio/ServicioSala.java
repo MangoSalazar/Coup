@@ -43,6 +43,12 @@ public class ServicioSala {
         cliente.salida().writeUTF("Error: Sala no encontrada.");
     }
  
+    public void salir(){
+        Sala salirse = obtenerSalaDelCliente();
+        if (salirse != null) {
+            salirse.eliminarIntegrante(cliente);
+        }
+    }
     public void ver() throws IOException {
         if (salas.isEmpty()) {
             cliente.salida().writeUTF("No hay salas disponibles.");
