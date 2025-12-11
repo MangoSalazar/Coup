@@ -20,7 +20,12 @@ public class Mensaje {
             return;
         }
 
-        if (mensaje.startsWith("/")) {
+        Sala salaActual = ss.obtenerSalaDelCliente();
+        boolean enPartida = (salaActual != null && salaActual.estaEnPartida());
+
+        // Si empieza con '/' es comando.
+        // Si está en partida y el mensaje empieza con un número, también es comando.
+        if (mensaje.startsWith("/") || (enPartida && Character.isDigit(mensaje.trim().charAt(0)))) {
             procesarComando(mensaje);
             return;
         }
@@ -44,6 +49,12 @@ public class Mensaje {
         String[] partes = mensaje.trim().split("\\s+");
         String comando = partes[0];
         Sala salaActual = ss.obtenerSalaDelCliente();
+
+        // Si es numérico, delegamos directo a ServicioPartida para que lo interprete
+        if (Character.isDigit(comando.charAt(0))) {
+            new ServicioPartida(cliente).manejarAccionDeJuego(mensaje, salaActual);
+            return;
+        }
 
         switch (comando) {
             case "/crear":
@@ -70,7 +81,7 @@ public class Mensaje {
                 new ServicioPartida(cliente).manejarInicioPartida(cliente, salaActual);
                 break;
 
-            // --- ACCIONES DE JUEGO ---
+            // Comandos clásicos de texto (por compatibilidad)
             case "/ingresos":
             case "/ayuda":
             case "/golpe":
@@ -90,7 +101,7 @@ public class Mensaje {
                 break;
 
             default:
-                cliente.salida().writeUTF("Comando desconocido. Escribe /menu para ver los comandos.");
+                cliente.salida().writeUTF("Comando desconocido. Escribe /menu.");
         }
     }
 
@@ -99,16 +110,9 @@ public class Mensaje {
                 "=========================================\n" +
                 "      BIENVENIDO A COUP - LOBBY\n" +
                 "=========================================\n" +
-                "Comandos de Sala:\n" +
-                " /crear             -> Crea una sala nueva.\n" +
-                " /unirse [nombre]   -> Únete a una sala.\n" +
-                " /ver               -> Ver salas disponibles.\n" +
-                " /iniciar           -> (Admin) Inicia la partida.\n" +
-                "\n" +
-                "Comandos de Juego:\n" +
-                " /ingresos, /ayuda, /golpe\n" +
-                " /impuestos, /asesinar, /extorsionar, /cambio\n" +
-                " /desafiar, /permitir\n" +
+                " /crear             -> Crea sala.\n" +
+                " /unirse [nombre]   -> Únete a sala.\n" +
+                " /iniciar           -> Inicia partida.\n" +
                 "=========================================\n";
         cliente.salida().writeUTF(menu);
     }
