@@ -9,6 +9,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Stack;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.Random; // Necesario para elegir al azar
 
 public class Partida {
     private List<Jugador> jugadores;
@@ -17,6 +20,16 @@ public class Partida {
 
     private Jugador jugadorVictima;
     private Jugador jugadorIntercambio;
+    private int cartasRobadasEmbajador = 0;
+
+    // --- VARIABLES PARA ACCIONES DESAFIABLES ---
+    private String accionPendiente = null;
+    private Jugador actorPendiente = null;
+    private Jugador objetivoPendiente = null;
+    private String cartaRequeridaPendiente = null;
+
+    // --- TEMPORIZADOR ---
+    private Timer temporizador;
 
     public Partida(List<UnCliente> clientes) {
         this.jugadores = new ArrayList<>();
@@ -26,6 +39,7 @@ public class Partida {
         this.indiceTurnoActual = 0;
         this.jugadorVictima = null;
         this.jugadorIntercambio = null;
+        limpiarAccionPendiente();
         inicializarJuego();
     }
 
@@ -44,7 +58,71 @@ public class Partida {
         }
     }
 
-    // Verificar Ganador
+    // --- MÉTODOS DEL TEMPORIZADOR ---
+    public synchronized void iniciarTemporizador(TimerTask tarea, long milisegundos) {
+        cancelarTemporizador();
+        temporizador = new Timer();
+        temporizador.schedule(tarea, milisegundos);
+    }
+
+    public synchronized void cancelarTemporizador() {
+        if (temporizador != null) {
+            temporizador.cancel();
+            temporizador = null;
+        }
+    }
+
+    // --- MÉTODOS DE ESTADO PENDIENTE ---
+    public void setAccionPendiente(String accion, Jugador actor, Jugador objetivo, String carta) {
+        this.accionPendiente = accion;
+        this.actorPendiente = actor;
+        this.objetivoPendiente = objetivo;
+        this.cartaRequeridaPendiente = carta;
+    }
+
+    public void limpiarAccionPendiente() {
+        this.accionPendiente = null;
+        this.actorPendiente = null;
+        this.objetivoPendiente = null;
+        this.cartaRequeridaPendiente = null;
+    }
+
+    public boolean hayAccionPendiente() {
+        return accionPendiente != null;
+    }
+
+    public String getAccionPendiente() { return accionPendiente; }
+    public Jugador getActorPendiente() { return actorPendiente; }
+    public Jugador getObjetivoPendiente() { return objetivoPendiente; }
+    public String getCartaRequeridaPendiente() { return cartaRequeridaPendiente; }
+
+    // --- LÓGICA DE CARTAS Y DESAFÍO ---
+    public boolean tieneCarta(Jugador j, String nombreCarta) {
+        for (Carta c : j.getMano()) {
+            if (!c.estaRevelada() && c.getRol().toString().equalsIgnoreCase(nombreCarta)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void cambiarCartaPorGanarDesafio(Jugador j, String nombreCarta) {
+        Iterator<Carta> it = j.getMano().iterator();
+        while (it.hasNext()) {
+            Carta c = it.next();
+            if (!c.estaRevelada() && c.getRol().toString().equalsIgnoreCase(nombreCarta)) {
+                it.remove();
+                mazo.push(c);
+                Collections.shuffle(mazo);
+                if (!mazo.isEmpty()) {
+                    j.recibirCarta(mazo.pop());
+                }
+                return;
+            }
+        }
+    }
+
+    // --- GETTERS ---
     public Jugador obtenerGanador() {
         int vivos = 0;
         Jugador ganador = null;
@@ -62,6 +140,18 @@ public class Partida {
         return jugadores.get(indiceTurnoActual);
     }
 
+    // NUEVO MÉTODO: Obtener víctima aleatoria (distinta al atacante)
+    public Jugador obtenerVictimaAleatoria(Jugador atacante) {
+        List<Jugador> posibles = new ArrayList<>();
+        for (Jugador j : jugadores) {
+            if (j.estaVivo() && !j.equals(atacante)) {
+                posibles.add(j);
+            }
+        }
+        if (posibles.isEmpty()) return null;
+        return posibles.get(new Random().nextInt(posibles.size()));
+    }
+
     public Jugador getJugador(UnCliente cliente) {
         for(Jugador j : jugadores) {
             if(j.getCliente().equals(cliente)) return j;
@@ -70,6 +160,7 @@ public class Partida {
     }
 
     public Jugador getJugadorVictima() { return jugadorVictima; }
+    public void setJugadorVictima(Jugador j) { this.jugadorVictima = j; }
     public Jugador getJugadorIntercambio() { return jugadorIntercambio; }
 
     public void siguienteTurno() {
@@ -80,6 +171,7 @@ public class Partida {
 
         jugadorVictima = null;
         jugadorIntercambio = null;
+        limpiarAccionPendiente();
     }
 
     public boolean esTurnoDe(UnCliente cliente) {
@@ -87,6 +179,7 @@ public class Partida {
         return actual != null && actual.getCliente().equals(cliente);
     }
 
+    // --- ACCIONES MATEMÁTICAS ---
     public void accionIngresos(Jugador j) { j.modificarMonedas(1); }
     public void accionAyudaExterior(Jugador j) { j.modificarMonedas(2); }
     public void accionImpuestos(Jugador j) { j.modificarMonedas(3); }
@@ -121,17 +214,30 @@ public class Partida {
 
     public void iniciarEmbajador(Jugador j) {
         if (mazo.isEmpty()) return;
-        int cartasARobar = Math.min(2, mazo.size());
-        for (int i = 0; i < cartasARobar; i++) {
+        cartasRobadasEmbajador = Math.min(2, mazo.size());
+        for (int i = 0; i < cartasRobadasEmbajador; i++) {
             j.recibirCarta(mazo.pop());
         }
         this.jugadorIntercambio = j;
     }
 
+    public void cancelarIntercambio() {
+        if (jugadorIntercambio == null) return;
+        List<Carta> mano = jugadorIntercambio.getMano();
+        for (int i = 0; i < cartasRobadasEmbajador; i++) {
+            if (!mano.isEmpty()) {
+                Carta c = mano.remove(mano.size() - 1);
+                mazo.push(c);
+            }
+        }
+        Collections.shuffle(mazo);
+        this.jugadorIntercambio = null;
+        this.cartasRobadasEmbajador = 0;
+    }
+
     public boolean concretarIntercambio(Jugador j, String carta1, String carta2) {
         List<Carta> mano = j.getMano();
         List<Carta> manoTemporal = new ArrayList<>(mano);
-
         Carta c1Encontrada = buscarYRemover(manoTemporal, carta1);
         Carta c2Encontrada = null;
 
@@ -143,26 +249,19 @@ public class Partida {
         }
 
         int cartasEncontradas = (c1Encontrada != null ? 1 : 0) + (c2Encontrada != null ? 1 : 0);
-
-        if (cartasEncontradas < cartasNecesarias) {
-            return false;
-        }
+        if (cartasEncontradas < cartasNecesarias) return false;
 
         j.getMano().clear();
-
         if (c1Encontrada != null) j.recibirCarta(c1Encontrada);
         if (c2Encontrada != null) j.recibirCarta(c2Encontrada);
 
         for (Carta c : manoTemporal) {
-            if (!c.estaRevelada()) {
-                mazo.push(c);
-            } else {
-                j.recibirCarta(c);
-            }
+            if (!c.estaRevelada()) mazo.push(c);
+            else j.recibirCarta(c);
         }
-
         Collections.shuffle(mazo);
         this.jugadorIntercambio = null;
+        this.cartasRobadasEmbajador = 0;
         return true;
     }
 

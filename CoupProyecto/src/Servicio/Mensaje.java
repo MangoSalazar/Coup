@@ -16,7 +16,6 @@ public class Mensaje {
     }
 
     public void manejarEntrada(String mensaje) throws IOException {
-        // VALIDACIÓN: No permitir mensajes vacíos o espacios en blanco
         if (mensaje == null || mensaje.trim().isEmpty()) {
             return;
         }
@@ -71,7 +70,7 @@ public class Mensaje {
                 new ServicioPartida(cliente).manejarInicioPartida(cliente, salaActual);
                 break;
 
-                //acciones de juego
+            // --- ACCIONES DE JUEGO ---
             case "/ingresos":
             case "/ayuda":
             case "/golpe":
@@ -81,7 +80,8 @@ public class Mensaje {
             case "/cambio":
             case "/revelar":
             case "/seleccionar":
-                // Delegamos la lógica al servicio de partida
+            case "/desafiar":
+            case "/permitir":
                 new ServicioPartida(cliente).manejarAccionDeJuego(mensaje, salaActual);
                 break;
 
@@ -105,9 +105,10 @@ public class Mensaje {
                 " /ver               -> Ver salas disponibles.\n" +
                 " /iniciar           -> (Admin) Inicia la partida.\n" +
                 "\n" +
-                "Comandos de Juego (Solo en partida):\n" +
+                "Comandos de Juego:\n" +
                 " /ingresos, /ayuda, /golpe\n" +
                 " /impuestos, /asesinar, /extorsionar, /cambio\n" +
+                " /desafiar, /permitir\n" +
                 "=========================================\n";
         cliente.salida().writeUTF(menu);
     }
