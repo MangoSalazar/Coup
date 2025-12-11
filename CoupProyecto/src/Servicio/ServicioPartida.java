@@ -17,6 +17,7 @@ public class ServicioPartida {
         this.cliente = cliente;
     }
 
+    // --- MÉTODO RESTAURADO PARA /SALIR ---
     public void manejarSalida(Sala sala) throws IOException {
         Partida partida = sala.getPartida();
         Jugador jugador = partida.getJugador(cliente);
@@ -26,28 +27,34 @@ public class ServicioPartida {
             return;
         }
 
+        // 1. ELIMINAR AL JUGADOR (Revelar todas sus cartas)
         for (Carta c : jugador.getMano()) {
             c.revelar();
         }
-        sala.broadcast( cliente.getId() + " se ha RENDIDO (/salir) y ha sido ELIMINADO.");
+        sala.broadcast("\n☠ " + cliente.getId() + " se ha RENDIDO (/salir) y ha sido ELIMINADO.");
 
+        // 2. LIMPIAR ESTADOS PENDIENTES
         boolean eraSuTurno = partida.esTurnoDe(cliente);
 
+        // Si era la víctima de un ataque/revelación
         if (partida.getJugadorVictima() != null && partida.getJugadorVictima().equals(jugador)) {
             partida.setJugadorVictima(null);
             partida.setEjecucionAsesinatoPendiente(false);
         }
 
+        // Si estaba haciendo intercambio (Embajador)
         if (partida.getJugadorIntercambio() != null && partida.getJugadorIntercambio().equals(jugador)) {
             partida.cancelarIntercambio();
         }
 
+        // Si estaba involucrado en una acción pendiente (Actor u Objetivo)
         if (partida.hayAccionPendiente()) {
             if (jugador.equals(partida.getActorPendiente()) || jugador.equals(partida.getObjetivoPendiente())) {
-                sala.broadcast("La acción pendiente se cancela por abandono del jugador.");
+                sala.broadcast("⚠️ La acción pendiente se cancela por abandono del jugador.");
                 partida.limpiarAccionPendiente();
                 partida.cancelarTemporizador();
 
+                // Si la acción se cancela y NO era su turno, avanzar para desatascar
                 if (!eraSuTurno) {
                     avanzarTurno(partida, sala);
                     return;
@@ -55,17 +62,20 @@ public class ServicioPartida {
             }
         }
 
+        // 3. VERIFICAR SI HAY GANADOR
         if (partida.obtenerGanador() != null) {
             avanzarTurno(partida, sala);
             return;
         }
 
+        // 4. PASAR TURNO SI ERA EL SUYO
         if (eraSuTurno) {
             partida.cancelarTemporizador();
             avanzarTurno(partida, sala);
         }
     }
 
+    // --- LÓGICA PRINCIPAL DEL JUEGO ---
     public void manejarAccionDeJuego(String comandoOriginal, Sala sala) throws IOException {
         if (sala == null || !sala.estaEnPartida()) {
             cliente.salida().writeUTF("Error: No hay partida activa.");
@@ -77,6 +87,7 @@ public class ServicioPartida {
         String[] partes = comando.split(" ");
         String accion = partes[0];
 
+        // 1. PRIORIDADES (Revelar y Selección)
         if (accion.equals("/revelar")) {
             manejarRevelacion(comando, sala, partida);
             return;
@@ -90,6 +101,7 @@ public class ServicioPartida {
             return;
         }
 
+        // 2. PAUSAS
         if (partida.getJugadorVictima() != null) {
             if (partida.getJugadorVictima().getCliente().equals(cliente)) {
                 mostrarEstadoJugador(partida.getJugadorVictima());
@@ -109,6 +121,7 @@ public class ServicioPartida {
             return;
         }
 
+        // 3. RESPUESTAS
         if (accion.equals("/desafiar") || accion.equals("/permitir") || accion.equals("/bloquear")) {
             partida.cancelarTemporizador();
             if (accion.equals("/desafiar")) manejarDesafio(sala, partida);
@@ -122,6 +135,7 @@ public class ServicioPartida {
             return;
         }
 
+        // 4. TURNO
         if (!partida.esTurnoDe(cliente)) {
             cliente.salida().writeUTF("¡No es tu turno!");
             return;
@@ -143,9 +157,9 @@ public class ServicioPartida {
                 avanzarTurno(partida, sala);
                 break;
             case "/ayuda":
-                partida.accionAyudaExterior(jugadorActual);
-                sala.broadcast(">> " + cliente.getId() + " pidió AYUDA EXTERIOR (+2).");
-                avanzarTurno(partida, sala);
+                // Lógica de Bloqueo de Ayuda
+                partida.setAccionPendiente("AYUDA", jugadorActual, null, null);
+                anunciarAccionDesafiable(sala, partida, jugadorActual, "AYUDA EXTERIOR", null, null);
                 break;
             case "/impuestos":
                 partida.setAccionPendiente("IMPUESTOS", jugadorActual, null, "DUQUE");
@@ -232,7 +246,12 @@ public class ServicioPartida {
         }
 
         if (partida.hayAccionPendiente()) {
-            if (opcion == 3 && "ASESINATO".equals(partida.getAccionPendiente()) && partida.getObjetivoPendiente().getCliente().equals(cliente)) return "/bloquear";
+            boolean esAsesinato = "ASESINATO".equals(partida.getAccionPendiente());
+            boolean esAyuda = "AYUDA".equals(partida.getAccionPendiente());
+            boolean soyObjetivoAsesinato = esAsesinato && partida.getObjetivoPendiente().getCliente().equals(cliente);
+            boolean soyEspectadorAyuda = esAyuda && !partida.getActorPendiente().getCliente().equals(cliente);
+
+            if (opcion == 3 && (soyObjetivoAsesinato || soyEspectadorAyuda)) return "/bloquear";
             if (opcion == 1) return "/desafiar";
             if (opcion == 2) return "/permitir";
             return input;
@@ -254,15 +273,26 @@ public class ServicioPartida {
     }
 
     private void manejarBloqueo(Sala sala, Partida partida) throws IOException {
-        if (!"ASESINATO".equals(partida.getAccionPendiente())) {
+        String accionActual = partida.getAccionPendiente();
+        if (!"ASESINATO".equals(accionActual) && !"AYUDA".equals(accionActual)) {
             cliente.salida().writeUTF("No puedes bloquear ahora.");
             return;
         }
-        Jugador victima = partida.getJugador(cliente);
-        Jugador asesino = partida.getActorPendiente();
-        sala.broadcast(victima.getId() + " bloquea con CONDESA.");
-        partida.setAccionPendiente("BLOQUEO_CONDESA", victima, asesino, "CONDESA");
-        sala.broadcast("¿" + asesino.getId() + " le cree? [1] Desafiar | [2] Permitir");
+
+        Jugador bloqueador = partida.getJugador(cliente);
+        Jugador actorOriginal = partida.getActorPendiente();
+
+        String cartaBloqueo = "CONDESA";
+        String nombreAccionBloqueo = "BLOQUEO_CONDESA";
+
+        if ("AYUDA".equals(accionActual)) {
+            cartaBloqueo = "DUQUE";
+            nombreAccionBloqueo = "BLOQUEO_AYUDA";
+        }
+
+        sala.broadcast("\n✋ " + bloqueador.getId() + " bloquea con " + cartaBloqueo + ".");
+        partida.setAccionPendiente(nombreAccionBloqueo, bloqueador, actorOriginal, cartaBloqueo);
+        sala.broadcast("¿" + actorOriginal.getId() + " le cree? [1] Desafiar | [2] Permitir");
         iniciarTimerDesafio(partida, sala);
     }
 
@@ -281,13 +311,15 @@ public class ServicioPartida {
         sala.broadcast("\n!!! " + desafiante.getId() + " DESAFÍA a " + actor.getId() + " !!!");
 
         if (partida.tieneCarta(actor, cartaRequerida)) {
-            sala.broadcast(">> " + actor.getId() + " ES INOCENTE (Tiene " + cartaRequerida + ").");
+            // INOCENTE
+            sala.broadcast(">> " + actor.getId() + " MOSTRÓ: " + cartaRequerida + ". ¡INOCENTE!");
             partida.cambiarCartaPorGanarDesafio(actor, cartaRequerida);
 
-            if ("BLOQUEO_CONDESA".equals(partida.getAccionPendiente())) {
-                sala.broadcast("Asesinato BLOQUEADO.");
+            if (partida.getAccionPendiente().startsWith("BLOQUEO")) {
+                sala.broadcast("🛡️ Bloqueo exitoso. Acción original cancelada.");
                 aplicarPenalizacion(sala, partida, desafiante);
             } else {
+                // DOBLE MUERTE POR ASESINATO
                 if ("ASESINATO".equals(partida.getAccionPendiente())
                         && desafiante.equals(partida.getObjetivoPendiente())
                         && partida.contarCartasVivas(desafiante) > 1) {
@@ -297,14 +329,15 @@ public class ServicioPartida {
                 aplicarPenalizacion(sala, partida, desafiante);
             }
         } else {
+            // CULPABLE
             sala.broadcast(">> " + actor.getId() + " MINTIÓ. Acción cancelada.");
-            boolean eraBloqueo = "BLOQUEO_CONDESA".equals(partida.getAccionPendiente());
-            partida.limpiarAccionPendiente();
+            boolean eraBloqueoAsesinato = "BLOQUEO_CONDESA".equals(partida.getAccionPendiente());
 
+            partida.limpiarAccionPendiente();
             aplicarPenalizacion(sala, partida, actor);
 
-            if (eraBloqueo && actor.estaVivo()) {
-                sala.broadcast("bloqueo fallido: ASESINATO procede.");
+            if (eraBloqueoAsesinato && actor.estaVivo()) {
+                sala.broadcast("🔪 Bloqueo fallido: ASESINATO procede.");
                 partida.setEjecucionAsesinatoPendiente(true);
             }
         }
@@ -319,8 +352,9 @@ public class ServicioPartida {
             return;
         }
         sala.broadcast(cliente.getId() + " permite la jugada.");
-        if ("BLOQUEO_CONDESA".equals(partida.getAccionPendiente())) {
-            sala.broadcast("Bloqueo aceptado. Asesinato cancelado.");
+
+        if (partida.getAccionPendiente().startsWith("BLOQUEO")) {
+            sala.broadcast("🛡️ Bloqueo aceptado. Acción original cancelada.");
             partida.limpiarAccionPendiente();
             avanzarTurno(partida, sala);
         } else {
@@ -339,6 +373,10 @@ public class ServicioPartida {
         if (accion == null) return;
 
         switch (accion) {
+            case "AYUDA":
+                partida.accionAyudaExterior(actor);
+                sala.broadcast(">> " + actor.getId() + " recibió AYUDA EXTERIOR (+2).");
+                break;
             case "IMPUESTOS":
                 partida.accionImpuestos(actor);
                 sala.broadcast(">> " + actor.getId() + " cobró IMPUESTOS (+3).");
@@ -367,15 +405,16 @@ public class ServicioPartida {
 
     private void aplicarPenalizacion(Sala sala, Partida partida, Jugador perdedor) throws IOException {
         if (partida.contarCartasVivas(perdedor) <= 1) {
+            // AUTO-KILL: Revelar la última carta automáticamente
             String ultimaCarta = null;
             for(Carta c : perdedor.getMano()) if(!c.estaRevelada()) ultimaCarta = c.getRol().toString();
 
             if (ultimaCarta != null) {
                 partida.concretarPerdida(perdedor, ultimaCarta);
-                sala.broadcast(perdedor.getId() + " pierde su última carta: " + ultimaCarta);
+                sala.broadcast("☠ " + perdedor.getId() + " pierde su última carta: " + ultimaCarta);
             }
 
-            sala.broadcast(perdedor.getId() + " ha sido ELIMINADO.");
+            sala.broadcast("☠ " + perdedor.getId() + " ha sido ELIMINADO.");
             partida.setEjecucionAsesinatoPendiente(false);
             partida.setJugadorVictima(null);
 
@@ -392,14 +431,18 @@ public class ServicioPartida {
         Jugador victima = partida.getJugadorVictima();
         if (victima == null || !victima.getCliente().equals(cliente)) return;
         String[] partes = comando.split(" ");
-        if (partes.length < 2) return;
+        if (partes.length < 2) {
+            cliente.salida().writeUTF("Uso: /revelar [NombreCarta]");
+            return;
+        }
 
         if (partida.concretarPerdida(victima, partes[1])) {
-            sala.broadcast(victima.getId() + " perdió: " + partes[1]);
+            sala.broadcast("☠ " + victima.getId() + " perdió: " + partes[1]);
 
+            // Lógica Doble Muerte
             if (victima.estaVivo() && partida.isEjecucionAsesinatoPendiente()) {
                 partida.setEjecucionAsesinatoPendiente(false);
-                sala.broadcast("Doble Muerte: Aplicando ASESINATO pendiente.");
+                sala.broadcast("🔪 Doble Muerte: Aplicando ASESINATO pendiente.");
                 aplicarPenalizacion(sala, partida, victima);
                 return;
             }
@@ -446,7 +489,7 @@ public class ServicioPartida {
                     if (jugador.getMonedas() >= 10) {
                         Jugador victima = partida.obtenerVictimaAleatoria(jugador);
                         if (victima != null) {
-                            sala.broadcast("\nTIEMPO (10+) -> GOLPE AUTOMÁTICO a " + victima.getId());
+                            sala.broadcast("\n⌛ TIEMPO (10+) -> GOLPE AUTOMÁTICO a " + victima.getId());
                             if (partida.iniciarGolpe(jugador, victima) == 1) {
                                 solicitarCartaAPerder(victima);
                                 partida.setJugadorVictima(victima);
@@ -471,7 +514,8 @@ public class ServicioPartida {
             public void run() {
                 try {
                     sala.broadcast("\n⌛ TIEMPO -> Acción procede.");
-                    if ("BLOQUEO_CONDESA".equals(partida.getAccionPendiente())) {
+                    if (partida.getAccionPendiente().startsWith("BLOQUEO")) {
+                        sala.broadcast("🛡️ Bloqueo efectivo por tiempo.");
                         partida.limpiarAccionPendiente();
                         avanzarTurno(partida, sala);
                     } else {
@@ -490,7 +534,7 @@ public class ServicioPartida {
             @Override
             public void run() {
                 try {
-                    sala.broadcast("\nTIEMPO SELECCIÓN -> Cancelado.");
+                    sala.broadcast("\n⌛ TIEMPO SELECCIÓN -> Cancelado.");
                     partida.cancelarIntercambio();
                     avanzarTurno(partida, sala);
                 } catch (IOException e) { e.printStackTrace(); }
@@ -575,13 +619,38 @@ public class ServicioPartida {
 
     private void anunciarAccionDesafiable(Sala sala, Partida partida, Jugador actor, String accion, String carta, Jugador victima) throws IOException {
         sala.broadcast("\n------------------------------------------------");
-        sala.broadcast(actor.getId() + " quiere usar " + accion);
+        sala.broadcast("⚠️ " + actor.getId() + " quiere usar " + accion);
+
         if ("ASESINATO".equals(partida.getAccionPendiente()) && victima != null) {
-            victima.getCliente().salida().writeUTF("\n!!! TE QUIEREN ASESINAR !!!");
-            victima.getCliente().salida().writeUTF(" [1] Desafiar | [2] Permitir | [3] Bloquear");
-        } else {
-            sala.broadcast("¿Respuesta? [1] Desafiar | [2] Permitir");
+            // Mensaje especial para la victima
+            for (UnCliente c : sala.obtenerIntegrantes()) {
+                if (c.equals(victima.getCliente())) {
+                    c.salida().writeUTF("\n!!! TE QUIEREN ASESINAR !!!");
+                    c.salida().writeUTF(" [1] Desafiar | [2] Permitir | [3] Bloquear (Condesa)");
+                } else {
+                    c.salida().writeUTF("Esperando decisión de la víctima...");
+                }
+            }
         }
+        else if ("AYUDA".equals(partida.getAccionPendiente())) {
+            for (UnCliente c : sala.obtenerIntegrantes()) {
+                if (!c.equals(actor.getCliente())) {
+                    c.salida().writeUTF("¿Respuesta? [1] Desafiar | [2] Permitir | [3] Bloquear (Duque)");
+                } else {
+                    c.salida().writeUTF("Esperando respuesta...");
+                }
+            }
+        }
+        else {
+            for (UnCliente c : sala.obtenerIntegrantes()) {
+                if (!c.equals(actor.getCliente())) {
+                    c.salida().writeUTF("¿Respuesta? [1] Desafiar | [2] Permitir");
+                } else {
+                    c.salida().writeUTF("Esperando respuesta...");
+                }
+            }
+        }
+
         sala.broadcast("------------------------------------------------\n");
         iniciarTimerDesafio(partida, sala);
     }
