@@ -3,3 +3,4 @@
 /CoupProyecto/build/
 
 /CoupProyecto/dist/
+ *.db
