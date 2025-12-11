@@ -15,7 +15,10 @@ public class UnCliente implements Runnable {
     private final DataOutputStream salida;
     private String id;
     private ServicioSala servicioSala;
-    //
+
+    // Convertimos a variable de clase para acceso externo (getter)
+    private ServicioSesion servicioSesion;
+
     // para saber si el cliente está en una sala privada
     private boolean enSala = false;
 
@@ -25,6 +28,12 @@ public class UnCliente implements Runnable {
         this.entrada = new DataInputStream(socket.getInputStream());
         this.id = id;
         this.servicioSala = new ServicioSala(this);
+        this.servicioSesion = new ServicioSesion(this);
+    }
+
+    // Getter necesario para que ServidorMulti verifique si está logueado
+    public ServicioSesion getServicioSesion() {
+        return servicioSesion;
     }
 
     public void setId(String id) {
@@ -54,20 +63,25 @@ public class UnCliente implements Runnable {
     @Override
     public void run() {
         try {
-            this.salida.writeUTF("Bienvenido " + id + ". Estás en el Lobby General.");
-            this.salida.writeUTF("Usa /crear [nombre] o /unirse [nombre] para jugar.");
-            
-            ServicioSesion ss = new ServicioSesion(this);
-            
+            // Eliminamos el mensaje de bienvenida inicial aquí porque el usuario aún no se loguea.
+
             while (true) {
-                if (!ss.isSesionIniciada()) {
-                    ss.iniciarSesion();
+                if (!servicioSesion.isSesionIniciada()) {
+                    servicioSesion.iniciarSesion();
+
+                    // VALIDACIÓN: Enviar bienvenida SOLO cuando ya inició sesión
+                    if (servicioSesion.isSesionIniciada()) {
+                        Mensaje.enviarBienvenida(this);
+                    }
                 }
-                
+
                 while (true) {
+                    // Si se cierra sesión por alguna razón, salimos al loop de login
+                    if (!servicioSesion.isSesionIniciada()) break;
+
                     // leemos el mensaje y delegamos todo a la clase Mensaje
                     String textoRecibido = entrada.readUTF();
-                    Mensaje.manejarEntrada(this, textoRecibido, servicioSala);
+                    new Mensaje(this, servicioSala).manejarEntrada(textoRecibido);
                 }
             }
 

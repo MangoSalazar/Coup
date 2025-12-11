@@ -1,51 +1,57 @@
 package Servicio;
 
+import Datos.SesionDAO;
 import Dominio.Sesion;
 import Servidor.ServidorMulti;
 import Servidor.UnCliente;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class ServicioSesion {
 
-    private List<Sesion> sesionesActivas = new ArrayList();
     private UnCliente cliente;
     private boolean sesionIniciada = false;
-    private Sesion sesionsita;
+    private Sesion sesionsita; // Mantenemos el objeto sesión en memoria para el juego
+    private SesionDAO sesionDAO;
 
     public ServicioSesion(UnCliente cliente) {
         this.cliente = cliente;
+        this.sesionDAO = new SesionDAO(); // Esto inicializa la BD
     }
 
     public boolean isSesionIniciada() {
         return sesionIniciada;
     }
 
+    // Pide datos y valida formato básico (sin espacios, longitud mínima)
     public String pedirCredenciales() throws IOException {
+        cliente.salida().writeUTF("--- INICIO DE SESIÓN ---");
         cliente.salida().writeUTF("Ingresa tu usuario: ");
-        String usuario = cliente.entrada().readUTF();
-        cliente.salida().writeUTF("Ingresa tu contra");
-        String contra = cliente.entrada().readUTF();
-        String cadenita = usuario + " " + contra;
-        if (evaluarCreedenciales(cadenita)) {
-            return cadenita;
+        String usuario = cliente.entrada().readUTF().trim();
+
+        cliente.salida().writeUTF("Ingresa tu contraseña: ");
+        String contra = cliente.entrada().readUTF().trim();
+
+        // Validaciones de formato
+        if (usuario.length() < 3) {
+            cliente.salida().writeUTF("Error: El usuario debe tener al menos 3 caracteres.");
+            return null;
         }
-        return null;
+        if (!usuario.matches("^[a-zA-Z0-9_]+$")) {
+            cliente.salida().writeUTF("Error: El usuario solo puede contener letras y números.");
+            return null;
+        }
+
+        return usuario + " " + contra;
     }
 
-    public boolean evaluarCreedenciales(String credenciales) {
-        if (credenciales.split(" ").length == 2) {
-            String nombre = credenciales.split(" ")[0];
-            String contra = credenciales.split(" ")[1];
-            return nombre.length() >= 3 && contra.length() >= 5 && nombre.matches("^[a-zA-Z0-9_]+$") && contra.matches("^[a-zA-Z0-9_]+$");
-        }
-        return false;
-    }
+    // Verifica si el usuario ya está conectado en el servidor (en memoria)
+    public boolean yaConectadoOnline(String nombre) {
+        for (UnCliente c : ServidorMulti.clientes.values()) {
+            // Ignoramos al cliente actual (que tiene ID numérico temporal)
+            if (c.equals(cliente)) continue;
 
-    public boolean yaLogueado(String nombreContra) throws IOException {
-        for(UnCliente clientesito : ServidorMulti.clientes.values()){
-            if (clientesito.getId().equals(nombreContra.split(" ")[0])) {
+            // Verificamos si alguien más ya tiene ese ID (ignora mayúsculas)
+            if (c.getId().equalsIgnoreCase(nombre)) {
                 return true;
             }
         }
@@ -55,26 +61,44 @@ public class ServicioSesion {
     public void iniciarSesion() throws IOException {
         while (!sesionIniciada) {
             String credenciales = pedirCredenciales();
+
             if (credenciales == null) {
-                cliente.salida().writeUTF("datos invalidos");
+                continue; // Hubo error de formato, pedimos de nuevo
+            }
+
+            String[] partes = credenciales.split(" ");
+            String usuario = partes[0];
+            String contra = partes[1];
+
+            // 1. Verificar si ya está jugando
+            if (yaConectadoOnline(usuario)) {
+                cliente.salida().writeUTF("Error: Ese usuario ya está conectado en el servidor.");
                 continue;
             }
-            if (!yaLogueado(credenciales)) {
-                sesionsita = new Sesion(credenciales.split(" ")[0], credenciales.split(" ")[1]);
-                sesionesActivas.add(sesionsita);
-                cliente.salida().writeUTF("inicio de sesion exitoso");
-                ServidorMulti.cambiarIdCliente(cliente.getId(), credenciales.split(" ")[0]);
-                sesionIniciada = true;
-                return;
+
+            // 2. Lógica de Base de Datos
+            if (sesionDAO.existeUsuario(usuario)) {
+                // El usuario EXISTE -> Intentar Login
+                if (sesionDAO.validarUsuario(usuario, contra)) {
+                    loguearExitoso(usuario, contra, "¡Bienvenido de vuelta, " + usuario + "!");
+                } else {
+                    cliente.salida().writeUTF("Error: Contraseña incorrecta.");
+                }
+            } else {
+                // El usuario NO EXISTE -> Registrar automáticamente
+                if (sesionDAO.registrarUsuario(usuario, contra)) {
+                    loguearExitoso(usuario, contra, "Cuenta creada exitosamente. Bienvenido " + usuario + ".");
+                } else {
+                    cliente.salida().writeUTF("Error al crear la cuenta. Intenta otro nombre.");
+                }
             }
-            cliente.salida().writeUTF("usuario ya logueado");
         }
     }
 
-    public void cerrarSesion() {
-        ServidorMulti.eliminarIdCliente(cliente.getId());
-        sesionesActivas.remove(sesionsita);
-        sesionIniciada = false;
+    private void loguearExitoso(String usuario, String contra, String mensaje) throws IOException {
+        sesionsita = new Sesion(usuario, contra);
+        ServidorMulti.cambiarIdCliente(cliente.getId(), usuario);
+        cliente.salida().writeUTF(mensaje);
+        sesionIniciada = true;
     }
-
 }

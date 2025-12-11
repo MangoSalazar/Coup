@@ -15,31 +15,16 @@ public class ParaMandar implements Runnable{
 
     @Override
     public void run() {
-        mandarMensaje();
-    }
-        public void mandarMensaje() {
-        int nMensaje = 0;
-        while (true) {
-            String mensaje = "";
+        while ( true ){
+            String mensaje;
             try {
-                nMensaje = enviarTest(nMensaje, mensaje);
-                /*
                 mensaje = teclado.readLine();
                 salida.writeUTF(mensaje);
-                */
             } catch (IOException ex) {
-                
             }
 
         }
     }
-    public int enviarTest(int nMensaje, String mensaje) throws IOException {
-        while (nMensaje < mensajitos.length) {
-            mensaje = mensajitos[nMensaje];
-            salida.writeUTF(mensaje);
-            nMensaje++;
-        }
-        return nMensaje;
-    }
+
 }
  
