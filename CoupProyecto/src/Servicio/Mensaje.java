@@ -45,6 +45,7 @@ public class Mensaje {
         String[] partes = mensaje.trim().split("\\s+");
         String comando = partes[0];
         Sala salaActual = ss.obtenerSalaDelCliente();
+        ServicioSesion servicioS = cliente.getServicioSesion();
 
         switch (comando) {
             case "/crear":
@@ -62,16 +63,18 @@ public class Mensaje {
                 break;
             case "/salir":
                 if (salaActual != null) {
-                    cliente.salida().writeUTF("Comando salir no implementado completamente.");
-                } else {
-                    cliente.salida().writeUTF("No estás en ninguna sala.");
+                    ss.salir();
+                    cliente.salida().writeUTF("saliste de sala "+salaActual.obtenerNombre());
+                    break;
                 }
+                cliente.salida().writeUTF("cerrando sesion...");
+                servicioS.cerrarSesion();
                 break;
             case "/iniciar":
                 new ServicioPartida(cliente).manejarInicioPartida(cliente, salaActual);
                 break;
 
-                //acciones de juego
+            //acciones de juego
             case "/ingresos":
             case "/ayuda":
             case "/golpe":
@@ -95,20 +98,21 @@ public class Mensaje {
     }
 
     public static void enviarBienvenida(UnCliente cliente) throws IOException {
-        String menu = "\n" +
-                "=========================================\n" +
-                "      BIENVENIDO A COUP - LOBBY\n" +
-                "=========================================\n" +
-                "Comandos de Sala:\n" +
-                " /crear             -> Crea una sala nueva.\n" +
-                " /unirse [nombre]   -> Únete a una sala.\n" +
-                " /ver               -> Ver salas disponibles.\n" +
-                " /iniciar           -> (Admin) Inicia la partida.\n" +
-                "\n" +
-                "Comandos de Juego (Solo en partida):\n" +
-                " /ingresos, /ayuda, /golpe\n" +
-                " /impuestos, /asesinar, /extorsionar, /cambio\n" +
-                "=========================================\n";
+        String menu = "\n"
+                + "=========================================\n"
+                + "      BIENVENIDO A COUP - LOBBY\n"
+                + "=========================================\n"
+                + "Comandos de Sala:\n"
+                + " /crear             -> Crea una sala nueva.\n"
+                + " /unirse [nombre]   -> Únete a una sala.\n"
+                + " /ver               -> Ver salas disponibles.\n"
+                + " /iniciar           -> (Admin) Inicia la partida.\n"
+                + " /salir           -> si no estas en una sala te cierra sesion, sino te saca de ella\n"
+                + "\n"
+                + "Comandos de Juego (Solo en partida):\n"
+                + " /ingresos, /ayuda, /golpe\n"
+                + " /impuestos, /asesinar, /extorsionar, /cambio\n"
+                + "=========================================\n";
         cliente.salida().writeUTF(menu);
     }
 }
