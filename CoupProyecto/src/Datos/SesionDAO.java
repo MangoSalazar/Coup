@@ -1,104 +1,89 @@
 package Datos;
 
 import Dominio.Sesion;
-import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 public class SesionDAO {
 
-    private static final String SQL_SELECT = "SELECT nombre, contra FROM cliente";
-    private static final String SQL_INSERT = "INSERT INTO cliente(nombre, contra) VALUES (?, ?)";
-    private static final String SQL_UPDATE = "UPDATE cliente SET contra = ? WHERE nombre = ?";
-    private static final String SQL_DELETE = "DELETE FROM cliente WHERE nombre = ?";
-    List<Sesion> sesiones;
+    private static final String URL = "jdbc:sqlite:coup_usuarios.db";
 
-    public boolean registrarUsuario(Sesion x) {
-        if (existeUsuario(x.getNombre()) == null) {
-            insertar(x);
-            return true;
-        }
-        return false;
-
+    public SesionDAO() {
+        crearTablaSiNoExiste();
     }
 
-    public boolean iniciarSesion(Sesion x) {
-        Sesion buscar = existeUsuario(x.getNombre());
-        if (buscar != null && x.getContra().equals(buscar.getContra())) {
-            return true;
+    private Connection conectar() {
+        Connection conn = null;
+        try {
+            conn = DriverManager.getConnection(URL);
+        } catch (SQLException e) {
+            System.out.println("Error de conexión a BD: " + e.getMessage());
         }
-        return false;
+        return conn;
     }
-  
-    public Sesion existeUsuario(String nombre) {
-        sesiones = listar();
-        for (Sesion sesion : sesiones) {
-            if (nombre.equals(sesion.getNombre())) {
-                return sesion;
+
+    private void crearTablaSiNoExiste() {
+        String sql = "CREATE TABLE IF NOT EXISTS usuarios (\n"
+                + " id integer PRIMARY KEY AUTOINCREMENT,\n"
+                + " nombre text NOT NULL UNIQUE,\n"
+                + " contra text NOT NULL\n"
+                + ");";
+
+        try (Connection conn = conectar();
+             Statement stmt = conn.createStatement()) {
+            if (conn != null) {
+                stmt.execute(sql);
             }
-        }
-        return null;
-    }
-
-    // Obtener todos los usuarios
-    public List<Sesion> listar() {
-        sesiones = new ArrayList<>();
-        try (Connection conn = Conexion.getConnection(); PreparedStatement stmt = conn.prepareStatement(SQL_SELECT); ResultSet rs = stmt.executeQuery()) {
-
-            while (rs.next()) {
-                String nombre = rs.getString("nombre");
-                String contra = rs.getString("contra");
-                sesiones.add(new Sesion(nombre, contra));
-            }
-
         } catch (SQLException e) {
-            e.printStackTrace(System.out);
+            System.out.println("Error creando tabla: " + e.getMessage());
         }
-        return sesiones;
     }
 
-    // Insertar nuevo usuario
-    public int insertar(Sesion sesion) {
-        int registros = 0;
-        try (Connection conn = Conexion.getConnection(); PreparedStatement stmt = conn.prepareStatement(SQL_INSERT)) {
-
-            stmt.setString(1, sesion.getNombre());
-            stmt.setString(2, sesion.getContra());
-            registros = stmt.executeUpdate();
-
+    // Verifica si las credenciales son correctas
+    public boolean validarUsuario(String nombre, String contra) {
+        String sql = "SELECT id FROM usuarios WHERE nombre = ? AND contra = ?";
+        try (Connection conn = conectar();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, nombre);
+            pstmt.setString(2, contra);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next(); // Retorna true si encontró el usuario
         } catch (SQLException e) {
-            e.printStackTrace(System.out);
+            System.out.println(e.getMessage());
+            return false;
         }
-        return registros;
     }
 
-    // Actualizar contraseña
-    public int actualizar(Sesion sesion) {
-        int registros = 0;
-        try (Connection conn = Conexion.getConnection(); PreparedStatement stmt = conn.prepareStatement(SQL_UPDATE)) {
-
-            stmt.setString(1, sesion.getContra());
-            stmt.setString(2, sesion.getNombre());
-            registros = stmt.executeUpdate();
-
+    // Verifica si el nombre de usuario ya existe (para no registrar duplicados)
+    public boolean existeUsuario(String nombre) {
+        String sql = "SELECT id FROM usuarios WHERE nombre = ?";
+        try (Connection conn = conectar();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, nombre);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next();
         } catch (SQLException e) {
-            e.printStackTrace(System.out);
+            System.out.println(e.getMessage());
+            return false;
         }
-        return registros;
     }
 
-    // Eliminar usuario por username
-    public int eliminar(Sesion sesion) {
-        int registros = 0;
-        try (Connection conn = Conexion.getConnection(); PreparedStatement stmt = conn.prepareStatement(SQL_DELETE)) {
-
-            stmt.setString(1, sesion.getNombre());
-            registros = stmt.executeUpdate();
-
+    // Registra un nuevo usuario en la BD
+    public boolean registrarUsuario(String nombre, String contra) {
+        String sql = "INSERT INTO usuarios(nombre, contra) VALUES(?,?)";
+        try (Connection conn = conectar();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, nombre);
+            pstmt.setString(2, contra);
+            pstmt.executeUpdate();
+            return true;
         } catch (SQLException e) {
-            e.printStackTrace(System.out);
+            System.out.println("Error registrando: " + e.getMessage());
+            return false;
         }
-        return registros;
     }
-
 }

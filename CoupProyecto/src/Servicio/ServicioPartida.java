@@ -23,7 +23,6 @@ public class ServicioPartida {
 
         Partida partida = sala.getPartida();
 
-
         if (comando.startsWith("/revelar")) {
             manejarRevelacion(comando, sala, partida);
             return;
@@ -77,10 +76,16 @@ public class ServicioPartida {
             case "/golpe":
                 if (procesarAtaque(partes, sala, partida, jugadorActual, "GOLPE")) {
                     Jugador victima = obtenerVictima(partes, sala, partida);
-                    if (partida.iniciarGolpe(jugadorActual, victima)) {
+                    int res = partida.iniciarGolpe(jugadorActual, victima);
+                    if (res == 0) cliente.salida().writeUTF("Faltan monedas (7).");
+                    else if (res == 1) {
                         sala.broadcast("!!! " + victima.getId() + " recibió un GOLPE DE ESTADO.");
                         solicitarCartaAPerder(victima);
-                    } else cliente.salida().writeUTF("Faltan monedas (7).");
+                    } else {
+                        sala.broadcast("!!! " + victima.getId() + " recibió un GOLPE y perdió su última carta.");
+                        if(!victima.estaVivo()) sala.broadcast("☠ JUGADOR ELIMINADO: " + victima.getId());
+                        avanzarTurno(partida, sala);
+                    }
                 }
                 break;
             case "/impuestos":
@@ -91,10 +96,16 @@ public class ServicioPartida {
             case "/asesinar":
                 if (procesarAtaque(partes, sala, partida, jugadorActual, "ASESINATO")) {
                     Jugador victima = obtenerVictima(partes, sala, partida);
-                    if (partida.iniciarAsesinato(jugadorActual, victima)) {
+                    int res = partida.iniciarAsesinato(jugadorActual, victima);
+                    if (res == 0) cliente.salida().writeUTF("Faltan monedas (3).");
+                    else if (res == 1) {
                         sala.broadcast("!!! " + victima.getId() + " ha sido ASESINADO.");
                         solicitarCartaAPerder(victima);
-                    } else cliente.salida().writeUTF("Faltan monedas (3).");
+                    } else {
+                        sala.broadcast("!!! " + victima.getId() + " fue ASESINADO y perdió su última carta.");
+                        if(!victima.estaVivo()) sala.broadcast("☠ JUGADOR ELIMINADO: " + victima.getId());
+                        avanzarTurno(partida, sala);
+                    }
                 }
                 break;
             case "/extorsionar":
@@ -106,27 +117,36 @@ public class ServicioPartida {
             case "/cambio":
                 partida.iniciarEmbajador(jugadorActual);
                 sala.broadcast(">> " + cliente.getId() + " inició un CAMBIO de cartas (Embajador).");
-
-                String opciones = "";
-                for(Carta c : jugadorActual.getMano()) {
-                    if(!c.estaRevelada()) opciones += "[" + c.verNombre() + "] ";
-                }
-                cliente.salida().writeUTF("\n--- CARTAS DISPONIBLES (Incluyendo las del mazo) ---");
-                cliente.salida().writeUTF(opciones);
-
-                int vidasReales = jugadorActual.getInfluenciaActiva() - 2;
-
-                if (vidasReales > 1) {
-                    cliente.salida().writeUTF("Debes quedarte con 2 cartas.");
-                    cliente.salida().writeUTF("Usa: /seleccionar [Carta1] [Carta2]");
-                } else {
-                    cliente.salida().writeUTF("Debes quedarte con 1 carta.");
-                    cliente.salida().writeUTF("Usa: /seleccionar [Carta1]");
-                }
+                mostrarOpcionesEmbajador(jugadorActual);
                 break;
             default:
                 cliente.salida().writeUTF("Acción no válida.");
         }
+    }
+
+    private void avanzarTurno(Partida partida, Sala sala) throws IOException {
+        Jugador ganador = partida.obtenerGanador();
+        if (ganador != null) {
+            sala.broadcast("\n*****************************************");
+            sala.broadcast("   ¡FELICIDADES " + ganador.getId().toUpperCase() + "!   ");
+            sala.broadcast("        HAS GANADO LA PARTIDA            ");
+            sala.broadcast("*****************************************\n");
+
+            sala.setPartida(null); // Esto pone enPartida = false y libera la sala
+            sala.broadcast("La partida ha finalizado. La sala está abierta de nuevo.");
+            return;
+        }
+
+        // Si no hay ganador, seguimos
+        partida.siguienteTurno();
+        Jugador siguiente = partida.obtenerJugadorTurno();
+        sala.broadcast("------------------------------------------------");
+        sala.broadcast("Turno de: " + siguiente.getId() + " | Monedas: " + siguiente.getMonedas());
+
+        StringBuilder cartas = new StringBuilder();
+        for(Carta c : siguiente.getMano()) if(!c.estaRevelada()) cartas.append("[").append(c.verNombre()).append("] ");
+        siguiente.getCliente().salida().writeUTF("Tus cartas: " + cartas.toString());
+        enviarMenuAcciones(siguiente.getCliente());
     }
 
 
@@ -137,35 +157,29 @@ public class ServicioPartida {
         }
         j.getCliente().salida().writeUTF("\n--- CARTAS DISPONIBLES (Incluyendo las del mazo) ---");
         j.getCliente().salida().writeUTF(opciones);
-
-        int aElegir = j.getInfluenciaActiva(); // Debe quedarse con tantas como tenía vivas
-
+        int vidasReales = j.getInfluenciaActiva() - 2;
         j.getCliente().salida().writeUTF("Selecciona las cartas que te quieres QUEDAR.");
-        j.getCliente().salida().writeUTF("Usa: /seleccionar [Carta1] " + (aElegir > 2 ? "[Carta2]" : ""));
+        j.getCliente().salida().writeUTF("Usa: /seleccionar [Carta1] " + (vidasReales > 1 ? "[Carta2]" : ""));
     }
 
     private void manejarSeleccionEmbajador(String comando, Sala sala, Partida partida) throws IOException {
         Jugador actor = partida.getJugadorIntercambio();
-
         if (actor == null || !actor.getCliente().equals(cliente)) {
             cliente.salida().writeUTF("No estás realizando un intercambio.");
             return;
         }
-
         String[] partes = comando.split(" ");
         String c1 = (partes.length > 1) ? partes[1] : null;
         String c2 = (partes.length > 2) ? partes[2] : null;
-
         if (c1 == null) {
             cliente.salida().writeUTF("Debes elegir al menos una carta.");
             return;
         }
-
         if (partida.concretarIntercambio(actor, c1, c2)) {
             sala.broadcast(">> " + actor.getId() + " finalizó el cambio de cartas.");
             avanzarTurno(partida, sala);
         } else {
-            cliente.salida().writeUTF("Error: Selección inválida. Revisa los nombres y cantidad.");
+            cliente.salida().writeUTF("Error: Selección inválida.");
         }
     }
 
@@ -226,25 +240,15 @@ public class ServicioPartida {
         return null;
     }
 
-    private void avanzarTurno(Partida partida, Sala sala) throws IOException {
-        partida.siguienteTurno();
-        Jugador siguiente = partida.obtenerJugadorTurno();
-        sala.broadcast("------------------------------------------------");
-        sala.broadcast("Turno de: " + siguiente.getId() + " | Monedas: " + siguiente.getMonedas());
-
-        StringBuilder cartas = new StringBuilder();
-        for(Carta c : siguiente.getMano()) if(!c.estaRevelada()) cartas.append("[").append(c.verNombre()).append("] ");
-        siguiente.getCliente().salida().writeUTF("Tus cartas: " + cartas.toString());
-        enviarMenuAcciones(siguiente.getCliente());
-    }
-
     public void manejarInicioPartida(UnCliente cliente, Sala sala) throws IOException {
         if (sala != null) {
             if (sala.getAdministrador().equals(cliente)) {
                 Partida nuevaPartida = new Partida(sala.obtenerIntegrantes());
                 sala.setPartida(nuevaPartida);
                 sala.broadcast(">>> ¡LA PARTIDA HA COMENZADO! <<< [Coup]");
-                avanzarTurno(nuevaPartida, sala);
+                Jugador primerJugador = nuevaPartida.obtenerJugadorTurno();
+                sala.broadcast("Turno de: " + primerJugador.getId() + " | Monedas: " + primerJugador.getMonedas());
+                enviarMenuAcciones(primerJugador.getCliente());
                 return;
             }
             cliente.salida().writeUTF("Error: Solo el administrador puede iniciar.");

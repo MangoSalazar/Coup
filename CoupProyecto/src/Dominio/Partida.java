@@ -44,6 +44,19 @@ public class Partida {
         }
     }
 
+    // Verificar Ganador
+    public Jugador obtenerGanador() {
+        int vivos = 0;
+        Jugador ganador = null;
+        for (Jugador j : jugadores) {
+            if (j.estaVivo()) {
+                vivos++;
+                ganador = j;
+            }
+        }
+        return (vivos == 1) ? ganador : null;
+    }
+
     public Jugador obtenerJugadorTurno() {
         if (jugadores.isEmpty()) return null;
         return jugadores.get(indiceTurnoActual);
@@ -78,22 +91,26 @@ public class Partida {
     public void accionAyudaExterior(Jugador j) { j.modificarMonedas(2); }
     public void accionImpuestos(Jugador j) { j.modificarMonedas(3); }
 
-    public boolean iniciarGolpe(Jugador atacante, Jugador victima) {
-        if (atacante.getMonedas() >= 7) {
-            atacante.modificarMonedas(-7);
-            this.jugadorVictima = victima;
-            return true;
+    public int iniciarGolpe(Jugador atacante, Jugador victima) {
+        if (atacante.getMonedas() < 7) return 0;
+        atacante.modificarMonedas(-7);
+        if (victima.getInfluenciaActiva() == 1) {
+            victima.perderInfluencia();
+            return 2;
         }
-        return false;
+        this.jugadorVictima = victima;
+        return 1;
     }
 
-    public boolean iniciarAsesinato(Jugador atacante, Jugador victima) {
-        if (atacante.getMonedas() >= 3) {
-            atacante.modificarMonedas(-3);
-            this.jugadorVictima = victima;
-            return true;
+    public int iniciarAsesinato(Jugador atacante, Jugador victima) {
+        if (atacante.getMonedas() < 3) return 0;
+        atacante.modificarMonedas(-3);
+        if (victima.getInfluenciaActiva() == 1) {
+            victima.perderInfluencia();
+            return 2;
         }
-        return false;
+        this.jugadorVictima = victima;
+        return 1;
     }
 
     public void accionExtorsion(Jugador atacante, Jugador victima) {
@@ -102,11 +119,8 @@ public class Partida {
         atacante.modificarMonedas(robo);
     }
 
-    // logica embajador
-    // Robar cartas y añadirlas temporalmente a la mano
     public void iniciarEmbajador(Jugador j) {
         if (mazo.isEmpty()) return;
-
         int cartasARobar = Math.min(2, mazo.size());
         for (int i = 0; i < cartasARobar; i++) {
             j.recibirCarta(mazo.pop());
@@ -133,6 +147,7 @@ public class Partida {
         if (cartasEncontradas < cartasNecesarias) {
             return false;
         }
+
         j.getMano().clear();
 
         if (c1Encontrada != null) j.recibirCarta(c1Encontrada);
@@ -150,6 +165,7 @@ public class Partida {
         this.jugadorIntercambio = null;
         return true;
     }
+
     private Carta buscarYRemover(List<Carta> lista, String nombre) {
         if (nombre == null) return null;
         Iterator<Carta> it = lista.iterator();
