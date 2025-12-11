@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Stack;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.Random; // Necesario para elegir al azar
+import java.util.Random;
 
 public class Partida {
     private List<Jugador> jugadores;
@@ -22,13 +22,13 @@ public class Partida {
     private Jugador jugadorIntercambio;
     private int cartasRobadasEmbajador = 0;
 
-    // --- VARIABLES PARA ACCIONES DESAFIABLES ---
     private String accionPendiente = null;
     private Jugador actorPendiente = null;
     private Jugador objetivoPendiente = null;
     private String cartaRequeridaPendiente = null;
 
-    // --- TEMPORIZADOR ---
+    private boolean ejecucionAsesinatoPendiente = false;
+
     private Timer temporizador;
 
     public Partida(List<UnCliente> clientes) {
@@ -39,6 +39,7 @@ public class Partida {
         this.indiceTurnoActual = 0;
         this.jugadorVictima = null;
         this.jugadorIntercambio = null;
+        this.ejecucionAsesinatoPendiente = false;
         limpiarAccionPendiente();
         inicializarJuego();
     }
@@ -58,7 +59,6 @@ public class Partida {
         }
     }
 
-    // --- MÉTODOS DEL TEMPORIZADOR ---
     public synchronized void iniciarTemporizador(TimerTask tarea, long milisegundos) {
         cancelarTemporizador();
         temporizador = new Timer();
@@ -72,7 +72,6 @@ public class Partida {
         }
     }
 
-    // --- MÉTODOS DE ESTADO PENDIENTE ---
     public void setAccionPendiente(String accion, Jugador actor, Jugador objetivo, String carta) {
         this.accionPendiente = accion;
         this.actorPendiente = actor;
@@ -87,16 +86,15 @@ public class Partida {
         this.cartaRequeridaPendiente = null;
     }
 
-    public boolean hayAccionPendiente() {
-        return accionPendiente != null;
-    }
-
+    public boolean hayAccionPendiente() { return accionPendiente != null; }
     public String getAccionPendiente() { return accionPendiente; }
     public Jugador getActorPendiente() { return actorPendiente; }
     public Jugador getObjetivoPendiente() { return objetivoPendiente; }
     public String getCartaRequeridaPendiente() { return cartaRequeridaPendiente; }
 
-    // --- LÓGICA DE CARTAS Y DESAFÍO ---
+    public boolean isEjecucionAsesinatoPendiente() { return ejecucionAsesinatoPendiente; }
+    public void setEjecucionAsesinatoPendiente(boolean estado) { this.ejecucionAsesinatoPendiente = estado; }
+
     public boolean tieneCarta(Jugador j, String nombreCarta) {
         for (Carta c : j.getMano()) {
             if (!c.estaRevelada() && c.getRol().toString().equalsIgnoreCase(nombreCarta)) {
@@ -122,7 +120,6 @@ public class Partida {
         }
     }
 
-    // --- GETTERS ---
     public Jugador obtenerGanador() {
         int vivos = 0;
         Jugador ganador = null;
@@ -140,7 +137,6 @@ public class Partida {
         return jugadores.get(indiceTurnoActual);
     }
 
-    // NUEVO MÉTODO: Obtener víctima aleatoria (distinta al atacante)
     public Jugador obtenerVictimaAleatoria(Jugador atacante) {
         List<Jugador> posibles = new ArrayList<>();
         for (Jugador j : jugadores) {
@@ -171,6 +167,7 @@ public class Partida {
 
         jugadorVictima = null;
         jugadorIntercambio = null;
+        ejecucionAsesinatoPendiente = false;
         limpiarAccionPendiente();
     }
 
@@ -179,7 +176,6 @@ public class Partida {
         return actual != null && actual.getCliente().equals(cliente);
     }
 
-    // --- ACCIONES MATEMÁTICAS ---
     public void accionIngresos(Jugador j) { j.modificarMonedas(1); }
     public void accionAyudaExterior(Jugador j) { j.modificarMonedas(2); }
     public void accionImpuestos(Jugador j) { j.modificarMonedas(3); }
@@ -290,4 +286,12 @@ public class Partida {
     }
 
     public boolean debeDarGolpe(Jugador j) { return j.getMonedas() >= 10; }
+
+    public int contarCartasVivas(Jugador j) {
+        int vivas = 0;
+        for (Carta c : j.getMano()) {
+            if (!c.estaRevelada()) vivas++;
+        }
+        return vivas;
+    }
 }

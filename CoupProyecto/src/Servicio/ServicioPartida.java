@@ -6,7 +6,6 @@ import Dominio.Partida;
 import Dominio.Sala;
 import Servidor.UnCliente;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.TimerTask;
 
@@ -25,19 +24,16 @@ public class ServicioPartida {
         }
 
         Partida partida = sala.getPartida();
-
-        // --- TRADUCCIÓN DE NÚMEROS A COMANDOS (SEGÚN CONTEXTO) ---
         String comando = interpretarNumero(comandoOriginal, partida);
         String[] partes = comando.split(" ");
+        String accion = partes[0];
 
-        // 1. Revelar Cartas (Por muerte o pérdida)
-        if (comando.startsWith("/revelar")) {
+        if (accion.equals("/revelar")) {
             manejarRevelacion(comando, sala, partida);
             return;
         }
 
-        // 2. Embajador (Selección)
-        if (comando.startsWith("/seleccionar")) {
+        if (accion.equals("/seleccionar")) {
             if (partida.getJugadorIntercambio() != null && partida.getJugadorIntercambio().getCliente().equals(cliente)) {
                 partida.cancelarTemporizador();
             }
@@ -45,39 +41,38 @@ public class ServicioPartida {
             return;
         }
 
-        // --- PAUSAS ---
         if (partida.getJugadorVictima() != null) {
             if (partida.getJugadorVictima().getCliente().equals(cliente)) {
-                mostrarOpcionesRevelar(partida.getJugadorVictima()); // Recordar opciones
+                mostrarEstadoJugador(partida.getJugadorVictima());
+                cliente.salida().writeUTF("¡Debes perder una carta! Escribe el número [1] o [2].");
             } else {
-                cliente.salida().writeUTF("Esperando a que " + partida.getJugadorVictima().getId() + " elija carta a perder.");
+                cliente.salida().writeUTF("Esperando a que " + partida.getJugadorVictima().getId() + " pierda una carta.");
             }
             return;
         }
 
         if (partida.getJugadorIntercambio() != null) {
             if (partida.getJugadorIntercambio().getCliente().equals(cliente)) {
-                cliente.salida().writeUTF("Selecciona cartas (20s). Ej: '1 2'");
+                cliente.salida().writeUTF("Estás cambiando cartas (20s). Usa: 1 2");
             } else {
                 cliente.salida().writeUTF("Esperando al Embajador...");
             }
             return;
         }
 
-        // 3. Desafíos
-        if (comando.startsWith("/desafiar") || comando.startsWith("/permitir")) {
+        if (accion.equals("/desafiar") || accion.equals("/permitir") || accion.equals("/bloquear")) {
             partida.cancelarTemporizador();
-            if (comando.startsWith("/desafiar")) manejarDesafio(sala, partida);
+            if (accion.equals("/desafiar")) manejarDesafio(sala, partida);
+            else if (accion.equals("/bloquear")) manejarBloqueo(sala, partida);
             else manejarPermiso(sala, partida);
             return;
         }
 
         if (partida.hayAccionPendiente()) {
-            cliente.salida().writeUTF("¡Hay una acción esperando! Usa: [1] Desafiar o [2] Permitir.");
+            cliente.salida().writeUTF("¡Hay una acción esperando! Usa: [1] Desafiar, [2] Permitir o [3] Bloquear.");
             return;
         }
 
-        // 4. Turno
         if (!partida.esTurnoDe(cliente)) {
             cliente.salida().writeUTF("¡No es tu turno!");
             return;
@@ -86,28 +81,26 @@ public class ServicioPartida {
         partida.cancelarTemporizador();
         Jugador jugadorActual = partida.getJugador(cliente);
 
-        if (partida.debeDarGolpe(jugadorActual) && !comando.startsWith("/golpe")) {
-            cliente.salida().writeUTF("¡10+ monedas! Debes usar: [7] Golpe [jugador]");
+        if (partida.debeDarGolpe(jugadorActual) && !accion.equals("/golpe")) {
+            cliente.salida().writeUTF("¡Tienes 10+ monedas! Debes usar: 7. /golpe");
             iniciarTimerTurno(partida, sala, jugadorActual);
             return;
         }
 
-        String accion = partes[0];
-
         switch (accion) {
             case "/ingresos":
                 partida.accionIngresos(jugadorActual);
-                sala.broadcast(">> " + cliente.getId() + " seleccionó: [1] INGRESOS (+1).");
+                sala.broadcast(">> " + cliente.getId() + " tomó INGRESOS (+1).");
                 avanzarTurno(partida, sala);
                 break;
             case "/ayuda":
                 partida.accionAyudaExterior(jugadorActual);
-                sala.broadcast(">> " + cliente.getId() + " seleccionó: [2] AYUDA EXTERIOR (+2).");
+                sala.broadcast(">> " + cliente.getId() + " pidió AYUDA EXTERIOR (+2).");
                 avanzarTurno(partida, sala);
                 break;
             case "/impuestos":
                 partida.setAccionPendiente("IMPUESTOS", jugadorActual, null, "DUQUE");
-                anunciarAccionDesafiable(sala, partida, jugadorActual, "[3] IMPUESTOS", "DUQUE", null);
+                anunciarAccionDesafiable(sala, partida, jugadorActual, "3. /impuestos", "DUQUE", null);
                 break;
             case "/asesinar":
                 if (procesarAtaque(partes, sala, partida, jugadorActual, "ASESINATO")) {
@@ -117,20 +110,20 @@ public class ServicioPartida {
                         return;
                     }
                     Jugador victima = obtenerVictima(partes, sala, partida);
-                    partida.setAccionPendiente("ASESINATO", jugadorActual, victima, "ASESINO");
-                    anunciarAccionDesafiable(sala, partida, jugadorActual, "[4] ASESINAR", "ASESINO", victima);
+                    partida.setAccionPendiente("ASESINATO", jugadorActual, victima, "ASESINA");
+                    anunciarAccionDesafiable(sala, partida, jugadorActual, "4. /asesinar", "ASESINA", victima);
                 } else { iniciarTimerTurno(partida, sala, jugadorActual); }
                 break;
             case "/extorsionar":
                 if (procesarAtaque(partes, sala, partida, jugadorActual, "EXTORSIÓN")) {
                     Jugador victima = obtenerVictima(partes, sala, partida);
                     partida.setAccionPendiente("EXTORSIÓN", jugadorActual, victima, "CAPITAN");
-                    anunciarAccionDesafiable(sala, partida, jugadorActual, "[5] EXTORSIONAR", "CAPITAN", victima);
+                    anunciarAccionDesafiable(sala, partida, jugadorActual, "5. /extorsionar", "CAPITAN", victima);
                 } else { iniciarTimerTurno(partida, sala, jugadorActual); }
                 break;
             case "/cambio":
                 partida.setAccionPendiente("CAMBIO", jugadorActual, null, "EMBAJADOR");
-                anunciarAccionDesafiable(sala, partida, jugadorActual, "[6] CAMBIO", "EMBAJADOR", null);
+                anunciarAccionDesafiable(sala, partida, jugadorActual, "6. /cambio", "EMBAJADOR", null);
                 break;
             case "/golpe":
                 if (procesarAtaque(partes, sala, partida, jugadorActual, "GOLPE")) {
@@ -140,7 +133,7 @@ public class ServicioPartida {
                         cliente.salida().writeUTF("Faltan monedas (7).");
                         iniciarTimerTurno(partida, sala, jugadorActual);
                     } else if (res == 1) {
-                        sala.broadcast("!!! " + victima.getId() + " recibió un [7] GOLPE DE ESTADO.");
+                        sala.broadcast("!!! " + victima.getId() + " recibió un GOLPE DE ESTADO.");
                         solicitarCartaAPerder(victima);
                     } else {
                         sala.broadcast("!!! " + victima.getId() + " eliminado por GOLPE.");
@@ -150,68 +143,52 @@ public class ServicioPartida {
                 } else { iniciarTimerTurno(partida, sala, jugadorActual); }
                 break;
             default:
-                cliente.salida().writeUTF("Acción inválida. Usa los números del menú.");
+                cliente.salida().writeUTF("Opción inválida.");
                 iniciarTimerTurno(partida, sala, jugadorActual);
         }
     }
 
-    // --- INTERPRETE DE NÚMEROS ---
     private String interpretarNumero(String input, Partida partida) {
         String[] partes = input.trim().split("\\s+");
         String primeraParte = partes[0];
-
-        // Si no es dígito, asumimos que es comando de texto completo (/ingresos)
         if (!Character.isDigit(primeraParte.charAt(0))) return input;
 
         int opcion;
         try { opcion = Integer.parseInt(primeraParte); } catch(Exception e) { return input; }
 
-        // Contexto: Víctima eligiendo carta (1 o 2)
         if (partida.getJugadorVictima() != null && partida.getJugadorVictima().getCliente().equals(cliente)) {
             Jugador yo = partida.getJugadorVictima();
             int index = opcion - 1;
-            List<Carta> mano = yo.getMano();
-            // Buscamos la carta no revelada en ese índice "visual"
-            int contadorVisibles = 0;
-            for (Carta c : mano) {
+            int contador = 0;
+            for (Carta c : yo.getMano()) {
                 if (!c.estaRevelada()) {
-                    if (contadorVisibles == index) return "/revelar " + c.getRol().toString();
-                    contadorVisibles++;
+                    if (contador == index) return "/revelar " + c.getRol().toString();
+                    contador++;
                 }
             }
-            return input; // Índice inválido
+            return input;
         }
 
-        // Contexto: Embajador eligiendo cartas (ej: "1 2")
         if (partida.getJugadorIntercambio() != null && partida.getJugadorIntercambio().getCliente().equals(cliente)) {
-            // Reconstruimos comando: "/seleccionar c1 c2"
-            // Necesitamos los nombres de las cartas basados en los índices
             Jugador yo = partida.getJugadorIntercambio();
             StringBuilder sb = new StringBuilder("/seleccionar");
-            List<Carta> mano = yo.getMano(); // Incluye las nuevas
-
-            // Recorremos todos los números enviados (ej input: "1 3")
+            List<Carta> mano = yo.getMano();
             for (String p : partes) {
                 try {
                     int idx = Integer.parseInt(p) - 1;
-                    if (idx >= 0 && idx < mano.size()) {
-                        // En embajador, todas están "en mano" (incluso las del mazo se agregaron temp)
-                        // pero filtramos reveladas por si acaso (aunque no deberia haber)
-                        sb.append(" ").append(mano.get(idx).getRol().toString());
-                    }
+                    if (idx >= 0 && idx < mano.size()) sb.append(" ").append(mano.get(idx).getRol().toString());
                 } catch(Exception ignored) {}
             }
             return sb.toString();
         }
 
-        // Contexto: Desafío pendiente
         if (partida.hayAccionPendiente()) {
+            if (opcion == 3 && "ASESINATO".equals(partida.getAccionPendiente()) && partida.getObjetivoPendiente().getCliente().equals(cliente)) return "/bloquear";
             if (opcion == 1) return "/desafiar";
             if (opcion == 2) return "/permitir";
             return input;
         }
 
-        // Contexto: Turno Principal
         if (partida.esTurnoDe(cliente)) {
             String arg = (partes.length > 1) ? partes[1] : "";
             switch (opcion) {
@@ -227,164 +204,113 @@ public class ServicioPartida {
         return input;
     }
 
-    // --- TIMERS ---
-    private void iniciarTimerTurno(Partida partida, Sala sala, Jugador jugador) {
-        partida.iniciarTemporizador(new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    if (jugador.getMonedas() >= 10) {
-                        Jugador victima = partida.obtenerVictimaAleatoria(jugador);
-                        if (victima != null) {
-                            sala.broadcast("\n⌛ TIEMPO AGOTADO (10+ monedas).");
-                            sala.broadcast(">> GOLPE AUTOMÁTICO a " + victima.getId());
-                            int res = partida.iniciarGolpe(jugador, victima);
-                            if (res == 1) {
-                                solicitarCartaAPerder(victima);
-                                partida.setJugadorVictima(victima);
-                            } else {
-                                sala.broadcast("!!! " + victima.getId() + " ELIMINADO.");
-                                avanzarTurno(partida, sala);
-                            }
-                        } else { avanzarTurno(partida, sala); }
-                    } else {
-                        sala.broadcast("\n⌛ TIEMPO AGOTADO. Se aplican INGRESOS.");
-                        partida.accionIngresos(jugador);
-                        avanzarTurno(partida, sala);
-                    }
-                } catch (IOException e) { e.printStackTrace(); }
-            }
-        }, 10000);
-    }
-
-    private void iniciarTimerDesafio(Partida partida, Sala sala) {
-        partida.iniciarTemporizador(new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    sala.broadcast("\n⌛ NADIE DESAFIÓ. Acción procede.");
-                    ejecutarAccionPendiente(sala, partida);
-                    if (partida.getJugadorIntercambio() == null && partida.getJugadorVictima() == null) {
-                        avanzarTurno(partida, sala);
-                    }
-                } catch (IOException e) { e.printStackTrace(); }
-            }
-        }, 10000);
-    }
-
-    private void iniciarTimerSeleccion(Partida partida, Sala sala, Jugador jugador) {
-        partida.iniciarTemporizador(new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    sala.broadcast("\n⌛ TIEMPO SELECCIÓN AGOTADO.");
-                    partida.cancelarIntercambio();
-                    avanzarTurno(partida, sala);
-                } catch (IOException e) { e.printStackTrace(); }
-            }
-        }, 20000);
-    }
-
-    // --- MENUS Y RESPUESTAS ---
-
-    private void enviarMenuAcciones(UnCliente cliente) throws IOException {
-        String menu = "\n" +
-                "--- ACCIONES (Escribe el número) ---\n" +
-                " [1] Ingresos (+1)\n" +
-                " [2] Ayuda Exterior (+2)\n" +
-                " [3] Impuestos (+3, Duque)\n" +
-                " [4] Asesinar [nombre] (3$, Asesino)\n" +
-                " [5] Extorsionar [nombre] (Capitán)\n" +
-                " [6] Cambio (Embajador)\n" +
-                " [7] Golpe [nombre] (7$)\n" +
-                "----------------\n";
-        cliente.salida().writeUTF(menu);
-    }
-
-    private void solicitarCartaAPerder(Jugador victima) throws IOException {
-        mostrarOpcionesRevelar(victima);
-        victima.getCliente().salida().writeUTF("PERDISTE UNA CARTA. Escribe el número ([1], [2]...) para revelarla.");
-    }
-
-    private void mostrarOpcionesRevelar(Jugador j) throws IOException {
-        StringBuilder sb = new StringBuilder("\n--- TUS CARTAS ---\n");
-        int i = 1;
-        for (Carta c : j.getMano()) {
-            if (!c.estaRevelada()) {
-                sb.append(" [").append(i).append("] ").append(c.verNombre()).append("\n");
-                i++;
-            }
+    private void manejarBloqueo(Sala sala, Partida partida) throws IOException {
+        if (!"ASESINATO".equals(partida.getAccionPendiente())) {
+            cliente.salida().writeUTF("No puedes bloquear ahora.");
+            return;
         }
-        j.getCliente().salida().writeUTF(sb.toString());
-    }
-
-    private void mostrarOpcionesEmbajador(Jugador j) throws IOException {
-        StringBuilder sb = new StringBuilder("\n--- ELIGE CARTAS A CONSERVAR (Ej: '1 2') ---\n");
-        int i = 1;
-        for (Carta c : j.getMano()) {
-            sb.append(" [").append(i).append("] ").append(c.verNombre()).append("\n");
-            i++;
-        }
-        j.getCliente().salida().writeUTF(sb.toString());
-    }
-
-    // --- FLUJO ---
-
-    private void anunciarAccionDesafiable(Sala sala, Partida partida, Jugador actor, String accion, String carta, Jugador victima) throws IOException {
-        sala.broadcast("\n------------------------------------------------");
-        sala.broadcast("⚠️  " + actor.getId() + " quiere usar " + accion);
-        sala.broadcast("Dice ser: [" + carta + "]" + (victima != null ? " contra " + victima.getId() : ""));
-        sala.broadcast("¿Qué hacen los demás? [1] Desafiar  |  [2] Permitir");
-        sala.broadcast("------------------------------------------------\n");
+        Jugador victima = partida.getJugador(cliente);
+        Jugador asesino = partida.getActorPendiente();
+        sala.broadcast("\n✋ " + victima.getId() + " bloquea con CONDESA.");
+        partida.setAccionPendiente("BLOQUEO_CONDESA", victima, asesino, "CONDESA");
+        sala.broadcast("¿" + asesino.getId() + " le cree? [1] Desafiar | [2] Permitir");
         iniciarTimerDesafio(partida, sala);
     }
 
     private void manejarDesafio(Sala sala, Partida partida) throws IOException {
-        if (!partida.hayAccionPendiente()) {
-            cliente.salida().writeUTF("No hay acción pendiente.");
-            return;
-        }
+        if (!partida.hayAccionPendiente()) return;
         Jugador desafiante = partida.getJugador(cliente);
         Jugador actor = partida.getActorPendiente();
 
+        boolean eraBloqueo = "BLOQUEO_CONDESA".equals(partida.getAccionPendiente());
+        boolean eraAsesinato = "ASESINATO".equals(partida.getAccionPendiente());
+        Jugador asesinoOriginal = partida.getObjetivoPendiente(); // En bloqueo, el objetivo es el asesino
+
         if (desafiante.equals(actor)) {
-            cliente.salida().writeUTF("No puedes desafiarte a ti mismo.");
+            cliente.salida().writeUTF("No puedes desafiarte.");
             iniciarTimerDesafio(partida, sala);
             return;
         }
 
         String cartaRequerida = partida.getCartaRequeridaPendiente();
-        sala.broadcast("\n!!! " + desafiante.getId() + " ha DESAFIADO a " + actor.getId() + " !!!");
+        sala.broadcast("\n!!! " + desafiante.getId() + " DESAFÍA a " + actor.getId() + " !!!");
 
         if (partida.tieneCarta(actor, cartaRequerida)) {
-            sala.broadcast(">> " + actor.getId() + " TIENE " + cartaRequerida + ". ¡Es INOCENTE!");
-            sala.broadcast("❌ " + desafiante.getId() + " pierde el desafío.");
+            sala.broadcast(">> " + actor.getId() + " MOSTRÓ: " + cartaRequerida + ". ¡INOCENTE!");
             partida.cambiarCartaPorGanarDesafio(actor, cartaRequerida);
-            ejecutarAccionPendiente(sala, partida);
-            aplicarPenalizacion(sala, partida, desafiante);
+
+            if (eraBloqueo) {
+                sala.broadcast("🛡️ Asesinato BLOQUEADO.");
+                aplicarPenalizacion(sala, partida, desafiante);
+            } else {
+                if (eraAsesinato && desafiante.equals(partida.getObjetivoPendiente())) {
+                    if (partida.contarCartasVivas(desafiante) >= 2) {
+                        sala.broadcast("🔪 Perdiste el desafío Y el Asesinato te golpea.");
+                        sala.broadcast("☠ " + desafiante.getId() + " pierde AMBAS cartas automáticamente.");
+                        revelarTodasCartas(sala, desafiante);
+
+                        partida.setJugadorVictima(null);
+                        partida.setEjecucionAsesinatoPendiente(false);
+                        partida.limpiarAccionPendiente();
+
+                        actor.modificarMonedas(-3);
+
+                        if (partida.getJugadorIntercambio() == null) avanzarTurno(partida, sala);
+                        return;
+                    } else {
+                        partida.setEjecucionAsesinatoPendiente(true);
+                    }
+                }
+
+                ejecutarAccionPendiente(sala, partida);
+                aplicarPenalizacion(sala, partida, desafiante);
+            }
         } else {
-            sala.broadcast(">> " + actor.getId() + " NO TIENE " + cartaRequerida + ". ¡MINTIÓ!");
-            sala.broadcast("❌ Acción cancelada.");
+            sala.broadcast(">> " + actor.getId() + " NO TIENE " + cartaRequerida + ". ¡CULPABLE!");
             partida.limpiarAccionPendiente();
+
+            if (eraBloqueo && partida.contarCartasVivas(actor) >= 2) {
+                sala.broadcast("🔪 Bloqueo fallido con mentira: MUERTE DOBLE.");
+                sala.broadcast("☠ " + actor.getId() + " pierde AMBAS cartas automáticamente.");
+                revelarTodasCartas(sala, actor);
+
+                partida.setJugadorVictima(null);
+                partida.setEjecucionAsesinatoPendiente(false);
+
+                if (asesinoOriginal != null) asesinoOriginal.modificarMonedas(-3);
+
+                if (partida.getJugadorIntercambio() == null) avanzarTurno(partida, sala);
+                return;
+            }
+
             aplicarPenalizacion(sala, partida, actor);
+
+            if (eraBloqueo && actor.estaVivo()) {
+                sala.broadcast("🔪 Bloqueo fallido: ASESINATO procede.");
+                partida.setEjecucionAsesinatoPendiente(true);
+                if (asesinoOriginal != null) asesinoOriginal.modificarMonedas(-3);
+            }
         }
     }
 
     private void manejarPermiso(Sala sala, Partida partida) throws IOException {
-        if (!partida.hayAccionPendiente()) {
-            cliente.salida().writeUTF("Nada que permitir.");
-            return;
-        }
+        if (!partida.hayAccionPendiente()) return;
         Jugador actor = partida.getActorPendiente();
         if (partida.getJugador(cliente).equals(actor)) {
             cliente.salida().writeUTF("Espera.");
             iniciarTimerDesafio(partida, sala);
             return;
         }
-        sala.broadcast(cliente.getId() + " permitió la jugada.");
-        ejecutarAccionPendiente(sala, partida);
-        if (partida.getJugadorIntercambio() == null && partida.getJugadorVictima() == null) {
+        sala.broadcast(cliente.getId() + " permite la jugada.");
+        if ("BLOQUEO_CONDESA".equals(partida.getAccionPendiente())) {
+            sala.broadcast("🛡️ Bloqueo aceptado. Asesinato cancelado.");
+            partida.limpiarAccionPendiente();
             avanzarTurno(partida, sala);
+        } else {
+            ejecutarAccionPendiente(sala, partida);
+            if (partida.getJugadorIntercambio() == null && partida.getJugadorVictima() == null) {
+                avanzarTurno(partida, sala);
+            }
         }
     }
 
@@ -403,12 +329,10 @@ public class ServicioPartida {
             case "ASESINATO":
                 int res = partida.iniciarAsesinato(actor, victima);
                 if (res == 1) {
-                    sala.broadcast("!!! " + victima.getId() + " ASESINADO.");
+                    sala.broadcast("!!! " + victima.getId() + " ha sido ASESINADO.");
                     solicitarCartaAPerder(victima);
                 } else if (res == 2) {
                     sala.broadcast("!!! " + victima.getId() + " ELIMINADO por Asesinato.");
-                } else {
-                    sala.broadcast("El objetivo ya no es válido.");
                 }
                 break;
             case "EXTORSIÓN":
@@ -417,7 +341,7 @@ public class ServicioPartida {
                 break;
             case "CAMBIO":
                 partida.iniciarEmbajador(actor);
-                sala.broadcast(">> " + actor.getId() + " examina el mazo.");
+                sala.broadcast(">> " + actor.getId() + " examina mazo.");
                 mostrarOpcionesEmbajador(actor);
                 iniciarTimerSeleccion(partida, sala, actor);
                 break;
@@ -425,10 +349,20 @@ public class ServicioPartida {
     }
 
     private void aplicarPenalizacion(Sala sala, Partida partida, Jugador perdedor) throws IOException {
-        if (perdedor.getInfluenciaActiva() <= 1) {
-            perdedor.perderInfluencia();
-            sala.broadcast("☠ " + perdedor.getId() + " ELIMINADO.");
-            if (partida.getJugadorIntercambio() == null && partida.getJugadorVictima() == null) {
+        if (partida.contarCartasVivas(perdedor) <= 1) {
+            String ultimaCarta = null;
+            for(Carta c : perdedor.getMano()) if(!c.estaRevelada()) ultimaCarta = c.getRol().toString();
+
+            if (ultimaCarta != null) {
+                partida.concretarPerdida(perdedor, ultimaCarta);
+                sala.broadcast("☠ " + perdedor.getId() + " pierde su última carta: " + ultimaCarta);
+            }
+
+            sala.broadcast("☠ " + perdedor.getId() + " ha sido ELIMINADO.");
+            partida.setEjecucionAsesinatoPendiente(false);
+            partida.setJugadorVictima(null);
+
+            if (partida.getJugadorIntercambio() == null) {
                 avanzarTurno(partida, sala);
             }
         } else {
@@ -445,6 +379,14 @@ public class ServicioPartida {
 
         if (partida.concretarPerdida(victima, partes[1])) {
             sala.broadcast("☠ " + victima.getId() + " perdió: " + partes[1]);
+
+            if (victima.estaVivo() && partida.isEjecucionAsesinatoPendiente()) {
+                partida.setEjecucionAsesinatoPendiente(false);
+                sala.broadcast("🔪 Doble Muerte: Aplicando ASESINATO pendiente.");
+                aplicarPenalizacion(sala, partida, victima);
+                return;
+            }
+
             if (!victima.estaVivo()) sala.broadcast("☠ ELIMINADO: " + victima.getId());
             if (partida.getJugadorIntercambio() == null) avanzarTurno(partida, sala);
         } else {
@@ -452,18 +394,12 @@ public class ServicioPartida {
         }
     }
 
-    private void manejarSeleccionEmbajador(String comando, Sala sala, Partida partida) throws IOException {
-        Jugador actor = partida.getJugadorIntercambio();
-        if (actor == null || !actor.getCliente().equals(cliente)) return;
-        String[] partes = comando.split(" ");
-        String c1 = (partes.length > 1) ? partes[1] : null;
-        String c2 = (partes.length > 2) ? partes[2] : null;
-
-        if (partida.concretarIntercambio(actor, c1, c2)) {
-            sala.broadcast(">> " + actor.getId() + " terminó el cambio.");
-            avanzarTurno(partida, sala);
-        } else {
-            cliente.salida().writeUTF("Error: Selección inválida.");
+    private void revelarTodasCartas(Sala sala, Jugador j) throws IOException {
+        for(Carta c : j.getMano()) {
+            if(!c.estaRevelada()) {
+                c.revelar();
+                sala.broadcast("   - Se revela: " + c.getRol());
+            }
         }
     }
 
@@ -479,21 +415,129 @@ public class ServicioPartida {
         Jugador siguiente = partida.obtenerJugadorTurno();
         sala.broadcast("------------------------------------------------");
         sala.broadcast("Turno de: " + siguiente.getId() + " | Monedas: " + siguiente.getMonedas());
-
-        // Mostrar cartas en formato numérico para futura referencia
-        mostrarOpcionesRevelar(siguiente); // Reusamos este método para mostrar cartas
+        mostrarEstadoJugador(siguiente);
         enviarMenuAcciones(siguiente.getCliente());
         iniciarTimerTurno(partida, sala, siguiente);
     }
 
+    private void iniciarTimerTurno(Partida partida, Sala sala, Jugador jugador) {
+        partida.iniciarTemporizador(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    if (jugador.getMonedas() >= 10) {
+                        Jugador victima = partida.obtenerVictimaAleatoria(jugador);
+                        if (victima != null) {
+                            sala.broadcast("\n⌛ TIEMPO (10+) -> GOLPE AUTOMÁTICO a " + victima.getId());
+                            if (partida.iniciarGolpe(jugador, victima) == 1) {
+                                solicitarCartaAPerder(victima);
+                                partida.setJugadorVictima(victima);
+                            } else {
+                                sala.broadcast("!!! " + victima.getId() + " ELIMINADO.");
+                                avanzarTurno(partida, sala);
+                            }
+                        } else avanzarTurno(partida, sala);
+                    } else {
+                        sala.broadcast("\n⌛ TIEMPO -> INGRESOS.");
+                        partida.accionIngresos(jugador);
+                        avanzarTurno(partida, sala);
+                    }
+                } catch (IOException e) { e.printStackTrace(); }
+            }
+        }, 10000);
+    }
+
+    private void iniciarTimerDesafio(Partida partida, Sala sala) {
+        partida.iniciarTemporizador(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    sala.broadcast("\n⌛ TIEMPO -> Acción procede.");
+                    if ("BLOQUEO_CONDESA".equals(partida.getAccionPendiente())) {
+                        partida.limpiarAccionPendiente();
+                        avanzarTurno(partida, sala);
+                    } else {
+                        ejecutarAccionPendiente(sala, partida);
+                        if (partida.getJugadorIntercambio() == null && partida.getJugadorVictima() == null) {
+                            avanzarTurno(partida, sala);
+                        }
+                    }
+                } catch (IOException e) { e.printStackTrace(); }
+            }
+        }, 10000);
+    }
+
+    private void iniciarTimerSeleccion(Partida partida, Sala sala, Jugador jugador) {
+        partida.iniciarTemporizador(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    sala.broadcast("\n⌛ TIEMPO SELECCIÓN -> Cancelado.");
+                    partida.cancelarIntercambio();
+                    avanzarTurno(partida, sala);
+                } catch (IOException e) { e.printStackTrace(); }
+            }
+        }, 20000);
+    }
+
+    private void enviarMenuAcciones(UnCliente cliente) throws IOException {
+        String menu = "\n" +
+                "--- ACCIONES (Escribe el número) ---\n" +
+                " [1] Ingresos (+1)\n" +
+                " [2] Ayuda Exterior (+2)\n" +
+                " [3] Impuestos (+3, Duque)\n" +
+                " [4] Asesinar [jug] (3$, Asesino)\n" +
+                " [5] Extorsionar [jug] (Capitán)\n" +
+                " [6] Cambio (Embajador)\n" +
+                " [7] Golpe [jug] (7$)\n" +
+                "----------------\n";
+        cliente.salida().writeUTF(menu);
+    }
+
+    private void mostrarEstadoJugador(Jugador j) throws IOException {
+        StringBuilder sb = new StringBuilder("Tus Cartas: ");
+        int i = 1;
+        for (Carta c : j.getMano()) {
+            if (!c.estaRevelada()) {
+                sb.append("[").append(i).append("] ").append(c.verNombre()).append(" ");
+                i++;
+            }
+        }
+        j.getCliente().salida().writeUTF(sb.toString());
+    }
+
+    private void mostrarOpcionesRevelar(Jugador j) throws IOException { mostrarEstadoJugador(j); }
+
+    private void mostrarOpcionesEmbajador(Jugador j) throws IOException {
+        mostrarEstadoJugador(j);
+        j.getCliente().salida().writeUTF("Usa: '1 2' para quedarte con esas cartas.");
+    }
+
+    private void solicitarCartaAPerder(Jugador victima) throws IOException {
+        mostrarEstadoJugador(victima);
+        victima.getCliente().salida().writeUTF("PERDISTE UNA CARTA. Escribe el número [1], [2]...");
+    }
+
+    private void manejarSeleccionEmbajador(String comando, Sala sala, Partida partida) throws IOException {
+        Jugador actor = partida.getJugadorIntercambio();
+        if (actor == null || !actor.getCliente().equals(cliente)) return;
+        String[] partes = comando.split(" ");
+        String c1 = (partes.length > 1) ? partes[1] : null;
+        String c2 = (partes.length > 2) ? partes[2] : null;
+        if (partida.concretarIntercambio(actor, c1, c2)) {
+            sala.broadcast(">> Cambio terminado.");
+            avanzarTurno(partida, sala);
+        } else cliente.salida().writeUTF("Error en selección.");
+    }
+
     private boolean procesarAtaque(String[] partes, Sala sala, Partida partida, Jugador atacante, String accion) throws IOException {
         if (partes.length < 2) {
-            cliente.salida().writeUTF("Falta objetivo (Ej: [4] Juan).");
+            cliente.salida().writeUTF("Falta objetivo.");
             return false;
         }
         Jugador victima = obtenerVictima(partes, sala, partida);
         if (victima == null || !victima.estaVivo()) {
-            cliente.salida().writeUTF("Jugador no válido.");
+            cliente.salida().writeUTF("Objetivo inválido.");
             return false;
         }
         if (victima.equals(atacante)) {
@@ -511,14 +555,32 @@ public class ServicioPartida {
         return null;
     }
 
+    private void anunciarAccionDesafiable(Sala sala, Partida partida, Jugador actor, String accion, String carta, Jugador victima) throws IOException {
+        sala.broadcast("\n------------------------------------------------");
+        sala.broadcast("⚠️ " + actor.getId() + " quiere usar " + accion);
+        if ("ASESINATO".equals(partida.getAccionPendiente()) && victima != null) {
+            victima.getCliente().salida().writeUTF("\n!!! TE QUIEREN ASESINAR !!!");
+            victima.getCliente().salida().writeUTF(" [1] Desafiar | [2] Permitir | [3] Bloquear");
+        } else {
+            sala.broadcast("¿Respuesta? [1] Desafiar | [2] Permitir");
+        }
+        sala.broadcast("------------------------------------------------\n");
+        iniciarTimerDesafio(partida, sala);
+    }
+
     public void manejarInicioPartida(UnCliente cliente, Sala sala) throws IOException {
         if (sala != null && sala.getAdministrador().equals(cliente)) {
             Partida nuevaPartida = new Partida(sala.obtenerIntegrantes());
             sala.setPartida(nuevaPartida);
             sala.broadcast(">>> ¡PARTIDA INICIADA! <<<");
+
+            for (UnCliente c : sala.obtenerIntegrantes()) {
+                Jugador j = nuevaPartida.getJugador(c);
+                if (j != null) mostrarEstadoJugador(j);
+            }
+
             Jugador primer = nuevaPartida.obtenerJugadorTurno();
             sala.broadcast("Turno de: " + primer.getId());
-            mostrarOpcionesRevelar(primer);
             enviarMenuAcciones(primer.getCliente());
             iniciarTimerTurno(nuevaPartida, sala, primer);
         }
