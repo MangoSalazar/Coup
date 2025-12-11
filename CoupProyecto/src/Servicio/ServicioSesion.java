@@ -1,5 +1,6 @@
 package Servicio;
 
+import Datos.SesionDAO;
 import Dominio.Sesion;
 import Servidor.ServidorMulti;
 import Servidor.UnCliente;
@@ -43,9 +44,9 @@ public class ServicioSesion {
         return false;
     }
 
-    public boolean yaLogueado(String nombreContra) throws IOException {
+    public boolean yaLogueado(Sesion sesionsita) throws IOException {
         for(UnCliente clientesito : ServidorMulti.clientes.values()){
-            if (clientesito.getId().equals(nombreContra.split(" ")[0])) {
+            if (clientesito.getId().equals(sesionsita.getNombre())) {
                 return true;
             }
         }
@@ -59,15 +60,20 @@ public class ServicioSesion {
                 cliente.salida().writeUTF("datos invalidos");
                 continue;
             }
-            if (!yaLogueado(credenciales)) {
-                sesionsita = new Sesion(credenciales.split(" ")[0], credenciales.split(" ")[1]);
+            
+            sesionsita = new Sesion(credenciales.split(" ")[0], credenciales.split(" ")[1]);
+            if (yaLogueado(sesionsita)) {
+                cliente.salida().writeUTF("usuario ya logueado");
+                return;
+            }
+            if (new SesionDAO().iniciarSesion(sesionsita)) {
                 sesionesActivas.add(sesionsita);
                 cliente.salida().writeUTF("inicio de sesion exitoso");
                 ServidorMulti.cambiarIdCliente(cliente.getId(), credenciales.split(" ")[0]);
                 sesionIniciada = true;
                 return;
-            }
-            cliente.salida().writeUTF("usuario ya logueado");
+            }cliente.salida().writeUTF("usuario y/o contra incorrectas");
+            sesionsita=null;
         }
     }
 
