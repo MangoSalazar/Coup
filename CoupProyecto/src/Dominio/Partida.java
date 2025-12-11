@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Stack;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.Random; // Necesario para elegir al azar
 
 public class Partida {
     private List<Jugador> jugadores;
@@ -19,7 +20,7 @@ public class Partida {
 
     private Jugador jugadorVictima;
     private Jugador jugadorIntercambio;
-    private int cartasRobadasEmbajador = 0; // Para revertir la acción si expira el tiempo
+    private int cartasRobadasEmbajador = 0;
 
     // --- VARIABLES PARA ACCIONES DESAFIABLES ---
     private String accionPendiente = null;
@@ -95,6 +96,7 @@ public class Partida {
     public Jugador getObjetivoPendiente() { return objetivoPendiente; }
     public String getCartaRequeridaPendiente() { return cartaRequeridaPendiente; }
 
+    // --- LÓGICA DE CARTAS Y DESAFÍO ---
     public boolean tieneCarta(Jugador j, String nombreCarta) {
         for (Carta c : j.getMano()) {
             if (!c.estaRevelada() && c.getRol().toString().equalsIgnoreCase(nombreCarta)) {
@@ -120,6 +122,7 @@ public class Partida {
         }
     }
 
+    // --- GETTERS ---
     public Jugador obtenerGanador() {
         int vivos = 0;
         Jugador ganador = null;
@@ -135,6 +138,18 @@ public class Partida {
     public Jugador obtenerJugadorTurno() {
         if (jugadores.isEmpty()) return null;
         return jugadores.get(indiceTurnoActual);
+    }
+
+    // NUEVO MÉTODO: Obtener víctima aleatoria (distinta al atacante)
+    public Jugador obtenerVictimaAleatoria(Jugador atacante) {
+        List<Jugador> posibles = new ArrayList<>();
+        for (Jugador j : jugadores) {
+            if (j.estaVivo() && !j.equals(atacante)) {
+                posibles.add(j);
+            }
+        }
+        if (posibles.isEmpty()) return null;
+        return posibles.get(new Random().nextInt(posibles.size()));
     }
 
     public Jugador getJugador(UnCliente cliente) {
@@ -164,6 +179,7 @@ public class Partida {
         return actual != null && actual.getCliente().equals(cliente);
     }
 
+    // --- ACCIONES MATEMÁTICAS ---
     public void accionIngresos(Jugador j) { j.modificarMonedas(1); }
     public void accionAyudaExterior(Jugador j) { j.modificarMonedas(2); }
     public void accionImpuestos(Jugador j) { j.modificarMonedas(3); }
@@ -208,7 +224,6 @@ public class Partida {
     public void cancelarIntercambio() {
         if (jugadorIntercambio == null) return;
         List<Carta> mano = jugadorIntercambio.getMano();
-
         for (int i = 0; i < cartasRobadasEmbajador; i++) {
             if (!mano.isEmpty()) {
                 Carta c = mano.remove(mano.size() - 1);
@@ -216,7 +231,6 @@ public class Partida {
             }
         }
         Collections.shuffle(mazo);
-
         this.jugadorIntercambio = null;
         this.cartasRobadasEmbajador = 0;
     }
