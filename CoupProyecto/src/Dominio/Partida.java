@@ -19,6 +19,7 @@ public class Partida {
 
     private Jugador jugadorVictima;
     private Jugador jugadorIntercambio;
+    private int cartasRobadasEmbajador = 0; // Para revertir la acción si expira el tiempo
 
     // --- VARIABLES PARA ACCIONES DESAFIABLES ---
     private String accionPendiente = null;
@@ -57,11 +58,10 @@ public class Partida {
     }
 
     // --- MÉTODOS DEL TEMPORIZADOR ---
-    public synchronized void iniciarTemporizador(TimerTask tarea) {
-        cancelarTemporizador(); // Limpia anterior si existe
+    public synchronized void iniciarTemporizador(TimerTask tarea, long milisegundos) {
+        cancelarTemporizador();
         temporizador = new Timer();
-        // 10 Segundos (10000 ms)
-        temporizador.schedule(tarea, 10000);
+        temporizador.schedule(tarea, milisegundos);
     }
 
     public synchronized void cancelarTemporizador() {
@@ -95,7 +95,6 @@ public class Partida {
     public Jugador getObjetivoPendiente() { return objetivoPendiente; }
     public String getCartaRequeridaPendiente() { return cartaRequeridaPendiente; }
 
-    // --- LÓGICA DE CARTAS Y DESAFÍO ---
     public boolean tieneCarta(Jugador j, String nombreCarta) {
         for (Carta c : j.getMano()) {
             if (!c.estaRevelada() && c.getRol().toString().equalsIgnoreCase(nombreCarta)) {
@@ -121,7 +120,6 @@ public class Partida {
         }
     }
 
-    // --- GETTERS ---
     public Jugador obtenerGanador() {
         int vivos = 0;
         Jugador ganador = null;
@@ -166,7 +164,6 @@ public class Partida {
         return actual != null && actual.getCliente().equals(cliente);
     }
 
-    // --- ACCIONES MATEMÁTICAS ---
     public void accionIngresos(Jugador j) { j.modificarMonedas(1); }
     public void accionAyudaExterior(Jugador j) { j.modificarMonedas(2); }
     public void accionImpuestos(Jugador j) { j.modificarMonedas(3); }
@@ -201,11 +198,27 @@ public class Partida {
 
     public void iniciarEmbajador(Jugador j) {
         if (mazo.isEmpty()) return;
-        int cartasARobar = Math.min(2, mazo.size());
-        for (int i = 0; i < cartasARobar; i++) {
+        cartasRobadasEmbajador = Math.min(2, mazo.size());
+        for (int i = 0; i < cartasRobadasEmbajador; i++) {
             j.recibirCarta(mazo.pop());
         }
         this.jugadorIntercambio = j;
+    }
+
+    public void cancelarIntercambio() {
+        if (jugadorIntercambio == null) return;
+        List<Carta> mano = jugadorIntercambio.getMano();
+
+        for (int i = 0; i < cartasRobadasEmbajador; i++) {
+            if (!mano.isEmpty()) {
+                Carta c = mano.remove(mano.size() - 1);
+                mazo.push(c);
+            }
+        }
+        Collections.shuffle(mazo);
+
+        this.jugadorIntercambio = null;
+        this.cartasRobadasEmbajador = 0;
     }
 
     public boolean concretarIntercambio(Jugador j, String carta1, String carta2) {
@@ -234,6 +247,7 @@ public class Partida {
         }
         Collections.shuffle(mazo);
         this.jugadorIntercambio = null;
+        this.cartasRobadasEmbajador = 0;
         return true;
     }
 

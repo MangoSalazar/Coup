@@ -24,15 +24,14 @@ public class ServicioPartida {
 
         Partida partida = sala.getPartida();
 
-        // 1. Prioridad: Resolver revelación
         if (comando.startsWith("/revelar")) {
             manejarRevelacion(comando, sala, partida);
             return;
         }
 
-        // 2. Prioridad: Intercambio Embajador
+        // Intercambio Embajador
         if (comando.startsWith("/seleccionar")) {
-            // Si el jugador correcto responde, cancelamos el timer de selección
+            // Si el jugador correcto responde, cancelamos el timer
             if (partida.getJugadorIntercambio() != null && partida.getJugadorIntercambio().getCliente().equals(cliente)) {
                 partida.cancelarTemporizador();
             }
@@ -40,7 +39,7 @@ public class ServicioPartida {
             return;
         }
 
-        // Estados de pausa (Víctima o Intercambio)
+        // Estados de pausa
         if (partida.getJugadorVictima() != null) {
             if (partida.getJugadorVictima().getCliente().equals(cliente)) {
                 cliente.salida().writeUTF("¡Debes elegir carta a perder! Usa: /revelar [Carta]");
@@ -52,44 +51,39 @@ public class ServicioPartida {
 
         if (partida.getJugadorIntercambio() != null) {
             if (partida.getJugadorIntercambio().getCliente().equals(cliente)) {
-                cliente.salida().writeUTF("Estás cambiando cartas. Usa: /seleccionar [Carta1] [Carta2]");
+                cliente.salida().writeUTF("Estás cambiando cartas (Tienes 20s). Usa: /seleccionar [Carta1] [Carta2]");
             } else {
                 cliente.salida().writeUTF("Esperando a que " + partida.getJugadorIntercambio().getId() + " termine.");
             }
             return;
         }
 
-        // 3. Manejo de Desafíos (Responder al desafío)
+        // Manejo de Desafíos
         if (comando.startsWith("/desafiar") || comando.startsWith("/permitir")) {
-            // Cancelamos el timer del desafío porque alguien respondió
             partida.cancelarTemporizador();
-
             if (comando.startsWith("/desafiar")) manejarDesafio(sala, partida);
             else manejarPermiso(sala, partida);
             return;
         }
 
-        // Si hay una acción pendiente y alguien intenta hacer otra cosa
         if (partida.hayAccionPendiente()) {
             cliente.salida().writeUTF("¡Hay una acción esperando! Usa /desafiar o /permitir.");
             return;
         }
 
-        // 4. Turno normal
+        // turno normal
         if (!partida.esTurnoDe(cliente)) {
             cliente.salida().writeUTF("¡No es tu turno!");
             return;
         }
 
-        // SI LLEGAMOS AQUI, EL JUGADOR ACTIVO MANDÓ UN COMANDO VÁLIDO EN SU TURNO.
-        // CANCELAMOS SU TEMPORIZADOR DE TURNO.
         partida.cancelarTemporizador();
 
         Jugador jugadorActual = partida.getJugador(cliente);
 
         if (partida.debeDarGolpe(jugadorActual) && !comando.startsWith("/golpe")) {
             cliente.salida().writeUTF("¡Tienes 10+ monedas! Debes usar: /golpe [jugador]");
-            iniciarTimerTurno(partida, sala, jugadorActual); // Reiniciar timer
+            iniciarTimerTurno(partida, sala, jugadorActual);
             return;
         }
 
@@ -97,7 +91,6 @@ public class ServicioPartida {
         String accion = partes[0];
 
         switch (accion) {
-            // --- ACCIONES DIRECTAS ---
             case "/ingresos":
                 partida.accionIngresos(jugadorActual);
                 sala.broadcast(">> " + cliente.getId() + " tomó INGRESOS (+1 moneda).");
@@ -130,7 +123,7 @@ public class ServicioPartida {
                 }
                 break;
 
-            // --- ACCIONES DESAFIABLES ---
+            // acciones desafiables
             case "/impuestos":
                 partida.setAccionPendiente("IMPUESTOS", jugadorActual, null, "DUQUE");
                 anunciarAccionDesafiable(sala, partida, jugadorActual, "IMPUESTOS", "DUQUE", null);
@@ -172,14 +165,13 @@ public class ServicioPartida {
         }
     }
 
-    // --- LOGICA DE TIMERS ---
-
+    //timers
     private void iniciarTimerTurno(Partida partida, Sala sala, Jugador jugador) {
         partida.iniciarTemporizador(new TimerTask() {
             @Override
             public void run() {
                 try {
-                    sala.broadcast("\n⌛ TIEMPO AGOTADO para " + jugador.getId() + ".");
+                    sala.broadcast("\nTIEMPO AGOTADO para " + jugador.getId() + ".");
                     sala.broadcast(">> Se aplican INGRESOS automáticos.");
                     partida.accionIngresos(jugador);
                     avanzarTurno(partida, sala);
@@ -187,7 +179,7 @@ public class ServicioPartida {
                     e.printStackTrace();
                 }
             }
-        });
+        }, 10000); // 10 Segundos turno
     }
 
     private void iniciarTimerDesafio(Partida partida, Sala sala) {
@@ -195,12 +187,8 @@ public class ServicioPartida {
             @Override
             public void run() {
                 try {
-                    sala.broadcast("\n⌛ NADIE DESAFIÓ. La acción procede automáticamente.");
-
-                    // CORRECCIÓN: No limpiamos aquí. ejecutarAccionPendiente lee los datos y luego limpia.
+                    sala.broadcast("\nNADIE DESAFIÓ. La acción procede automáticamente.");
                     ejecutarAccionPendiente(sala, partida);
-
-                    // Verificamos si podemos avanzar turno (si no hay muertos o cambios pendientes)
                     if (partida.getJugadorIntercambio() == null && partida.getJugadorVictima() == null) {
                         avanzarTurno(partida, sala);
                     }
@@ -208,36 +196,34 @@ public class ServicioPartida {
                     e.printStackTrace();
                 }
             }
-        });
+        }, 10000); // 10 Segundos desafío
     }
 
+    // TIMER DE EMBAJADOR (20 SEGUNDOS)
     private void iniciarTimerSeleccion(Partida partida, Sala sala, Jugador jugador) {
         partida.iniciarTemporizador(new TimerTask() {
             @Override
             public void run() {
                 try {
-                    sala.broadcast("\n⌛ TIEMPO DE SELECCIÓN AGOTADO.");
-                    sala.broadcast(">> El turno pasa sin cambios.");
-                    // En una implementación real se descartarían cartas al azar.
-                    // Aquí forzamos el avance de turno para no bloquear.
-                    // Limpiamos el estado de intercambio forzosamente
-                    // (NOTA: Esto podría dejar al jugador con cartas de más si no se maneja en Partida,
-                    // pero evita que el juego se rompa).
+                    sala.broadcast("\nTIEMPO DE SELECCIÓN AGOTADO (20s).");
+                    sala.broadcast(">> " + jugador.getId() + " no eligió a tiempo. Se queda con sus cartas originales.");
+
+                    // Revertimos el intercambio (quitamos las cartas nuevas)
+                    partida.cancelarIntercambio();
+
                     avanzarTurno(partida, sala);
                 } catch (IOException e) { e.printStackTrace(); }
             }
-        });
+        }, 20000); // 20 Segundos selección
     }
 
-    // --- MÉTODOS DE FLUJO ---
 
     private void anunciarAccionDesafiable(Sala sala, Partida partida, Jugador actor, String accion, String carta, Jugador victima) throws IOException {
         sala.broadcast("\n------------------------------------------------");
-        sala.broadcast("⚠️  " + actor.getId() + " quiere usar " + accion + ".");
+        sala.broadcast(actor.getId() + " quiere usar " + accion + ".");
         sala.broadcast("Dice ser: [" + carta + "]" + (victima != null ? " contra " + victima.getId() : ""));
         sala.broadcast("¿Le crees? Tienes 10 SEGUNDOS para: /desafiar o /permitir.");
         sala.broadcast("------------------------------------------------\n");
-
         iniciarTimerDesafio(partida, sala);
     }
 
@@ -246,13 +232,12 @@ public class ServicioPartida {
             cliente.salida().writeUTF("No hay acción pendiente.");
             return;
         }
-
         Jugador desafiante = partida.getJugador(cliente);
         Jugador actor = partida.getActorPendiente();
 
         if (desafiante.equals(actor)) {
             cliente.salida().writeUTF("No puedes desafiarte a ti mismo.");
-            iniciarTimerDesafio(partida, sala); // Restauramos el timer si se equivocó
+            iniciarTimerDesafio(partida, sala);
             return;
         }
 
@@ -261,17 +246,14 @@ public class ServicioPartida {
 
         if (partida.tieneCarta(actor, cartaRequerida)) {
             sala.broadcast(">> " + actor.getId() + " MOSTRÓ LA CARTA: " + cartaRequerida + ". ¡Es INOCENTE!");
-            sala.broadcast("❌ " + desafiante.getId() + " falló el desafío.");
-
+            sala.broadcast( desafiante.getId() + " falló el desafío.");
             partida.cambiarCartaPorGanarDesafio(actor, cartaRequerida);
             actor.getCliente().salida().writeUTF("Has robado una nueva carta.");
-
             ejecutarAccionPendiente(sala, partida);
             aplicarPenalizacion(sala, partida, desafiante);
         } else {
             sala.broadcast(">> " + actor.getId() + " NO TIENE " + cartaRequerida + ". ¡Es CULPABLE!");
-            sala.broadcast("❌ La acción se cancela.");
-
+            sala.broadcast("La acción se cancela.");
             partida.limpiarAccionPendiente();
             aplicarPenalizacion(sala, partida, actor);
         }
@@ -285,13 +267,11 @@ public class ServicioPartida {
         Jugador actor = partida.getActorPendiente();
         if (partida.getJugador(cliente).equals(actor)) {
             cliente.salida().writeUTF("Espera a los demás.");
-            iniciarTimerDesafio(partida, sala); // Restaurar timer
+            iniciarTimerDesafio(partida, sala);
             return;
         }
-
         sala.broadcast(cliente.getId() + " ha permitido la jugada.");
         ejecutarAccionPendiente(sala, partida);
-
         if (partida.getJugadorIntercambio() == null && partida.getJugadorVictima() == null) {
             avanzarTurno(partida, sala);
         }
@@ -302,10 +282,9 @@ public class ServicioPartida {
         Jugador actor = partida.getActorPendiente();
         Jugador victima = partida.getObjetivoPendiente();
 
-        // Obtenemos los datos y LUEGO limpiamos.
         partida.limpiarAccionPendiente();
 
-        if (accion == null) return; // Protección contra errores nulos
+        if (accion == null) return;
 
         switch (accion) {
             case "IMPUESTOS":
@@ -375,7 +354,7 @@ public class ServicioPartida {
 
     private void enviarMenuAcciones(UnCliente cliente) throws IOException {
         String menu = "\n" +
-                "--- ACCIONES (Tienes 10s) ---\n" +
+                "--- ACCIONES (10s) ---\n" +
                 "1. /ingresos       -> +1 moneda\n" +
                 "2. /ayuda          -> +2 monedas\n" +
                 "3. /impuestos      -> +3 monedas (Duque)\n" +
