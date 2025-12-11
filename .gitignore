@@ -5,3 +5,4 @@
 /CoupProyecto/dist/
  *.db
 coup_usuarios.db
+coup_usuarios.db.backup
