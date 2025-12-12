@@ -681,6 +681,10 @@ public class ServicioPartida {
 
     public void manejarInicioPartida(UnCliente cliente, Sala sala) throws IOException {
         if (sala != null && sala.getAdministrador().equals(cliente)) {
+            if(sala.obtenerIntegrantes().size()<3 || sala.obtenerIntegrantes().size()>6){
+                cliente.salida().writeUTF("al menos deben ser 3 jugadores, maximo 6");
+                return;
+            }
             Partida nuevaPartida = new Partida(sala.obtenerIntegrantes());
             sala.setPartida(nuevaPartida);
             sala.broadcast(">>> ¡PARTIDA INICIADA! <<<");
