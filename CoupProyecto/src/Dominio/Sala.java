@@ -45,11 +45,26 @@ public class Sala {
         integrantes.add(integrante);
     }
     public void eliminarIntegrante(UnCliente integrante) {
+<<<<<<< HEAD
+=======
+        integrante.setEnSala(false);
+>>>>>>> partida
         integrantes.remove(integrante);
     }
 
     public UnCliente getAdministrador() {
         return administrador;
+    }
+    public void eliminarAdministrador(){
+        this.administrador = null;
+    }
+    public void vaciarSala(Sala sala){
+        List<UnCliente> listaIntegrantes = sala.obtenerIntegrantes();
+        for(UnCliente integrante : listaIntegrantes){
+            integrante.setEnSala(false);
+        }
+        this.integrantes.clear();
+        eliminarAdministrador();
     }
 
     public Partida getPartida() {
