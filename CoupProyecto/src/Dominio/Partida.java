@@ -40,6 +40,7 @@ public class Partida {
         this.jugadorVictima = null;
         this.jugadorIntercambio = null;
         this.ejecucionAsesinatoPendiente = false;
+        Collections.shuffle(jugadores);
         limpiarAccionPendiente();
         inicializarJuego();
     }
