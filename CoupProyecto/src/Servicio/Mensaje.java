@@ -8,17 +8,19 @@ import java.io.IOException;
 public class Mensaje {
 
     private UnCliente cliente;
-    private ServicioSala ss;
+    private ServicioSala sSala;
 
     public Mensaje(UnCliente cliente, ServicioSala ss) {
         this.cliente = cliente;
-        this.ss = ss;
+        this.sSala = ss;
     }
 
     public void manejarEntrada(String mensaje) throws IOException {
-        if (mensaje == null || mensaje.trim().isEmpty()) return;
+        if (mensaje == null || mensaje.trim().isEmpty()) {
+            return;
+        }
 
-        Sala salaActual = ss.obtenerSalaDelCliente();
+        Sala salaActual = sSala.obtenerSalaDelCliente();
         boolean enPartida = (salaActual != null && salaActual.estaEnPartida());
 
         if (mensaje.startsWith("/") || (enPartida && Character.isDigit(mensaje.trim().charAt(0)))) {
@@ -29,18 +31,18 @@ public class Mensaje {
     }
 
     private void procesarChat(String mensaje) {
-        Sala salaActual = ss.obtenerSalaDelCliente();
+        Sala salaActual = sSala.obtenerSalaDelCliente();
         if (salaActual != null) {
             salaActual.broadcast("[" + cliente.getId() + "]: " + mensaje, cliente);
-        } else {
-            ServidorMulti.broadcastGlobal("[LOBBY - " + cliente.getId() + "]: " + mensaje, cliente);
+            return;
         }
+        ServidorMulti.broadcastGlobal("[LOBBY - " + cliente.getId() + "]: " + mensaje, cliente);
     }
 
     private void procesarComando(String mensaje) throws IOException {
         String[] partes = mensaje.trim().split("\\s+");
         String comando = partes[0];
-        Sala salaActual = ss.obtenerSalaDelCliente();
+        Sala salaActual = sSala.obtenerSalaDelCliente();
 
         if (Character.isDigit(comando.charAt(0))) {
             new ServicioPartida(cliente).manejarAccionDeJuego(mensaje, salaActual);
@@ -48,13 +50,29 @@ public class Mensaje {
         }
 
         switch (comando) {
-            case "/crear": ss.crear(cliente); break;
-            case "/unirse":
-                if (partes.length > 1) ss.unirse(partes[1]);
-                else cliente.salida().writeUTF("Uso: /unirse [nombreSala]");
+            case "/crear":
+                sSala.crear(cliente);
                 break;
-            case "/ver": ss.ver(); break;
-            case "/iniciar": new ServicioPartida(cliente).manejarInicioPartida(cliente, salaActual); break;
+            case "/unirse":
+                if (partes.length > 1) {
+                    sSala.unirse(partes[1]);
+                    break;
+                }
+                cliente.salida().writeUTF("Uso: /unirse [nombreSala]");
+                break;
+            case "/expulsar":
+                if (partes.length > 1) {
+                    sSala.expulsar(partes[1],salaActual);
+                    break;
+                }
+                cliente.salida().writeUTF("Uso: /expulsar [nombreJugador]");
+                break;
+            case "/ver":
+                sSala.ver();
+                break;
+            case "/iniciar":
+                new ServicioPartida(cliente).manejarInicioPartida(cliente, salaActual);
+                break;
 
             case "/ingresos":
             case "/ayuda":
@@ -72,17 +90,18 @@ public class Mensaje {
                 break;
 
             case "/salir":
-                if (salaActual != null && salaActual.estaEnPartida()) {
+                if (salaActual.estaEnPartida()) {
                     new ServicioPartida(cliente).manejarSalida(salaActual);
-                } else if (salaActual != null) {
-                    ss.salir(cliente.getId());
-                } else {
-                    cliente.salida().writeUTF("No estás en ninguna sala.");
+                    break;
                 }
+                sSala.salir(salaActual);
                 break;
 
-            case "/menu": enviarBienvenida(cliente); break;
-            default: cliente.salida().writeUTF("Comando desconocido. Escribe /menu.");
+            case "/menu":
+                enviarBienvenida(cliente);
+                break;
+            default:
+                cliente.salida().writeUTF("Comando desconocido. Escribe /menu.");
         }
     }
 
