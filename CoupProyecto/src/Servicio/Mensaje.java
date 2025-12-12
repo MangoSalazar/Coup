@@ -33,7 +33,7 @@ public class Mensaje {
     private void procesarChat(String mensaje) {
         Sala salaActual = sSala.obtenerSalaDelCliente();
         if (salaActual != null) {
-            salaActual.broadcast("[" + cliente.getId() + "]: " + mensaje, cliente);
+            salaActual.broadcast("["+salaActual.obtenerNombre()+" - "+ cliente.getId() + "]: " + mensaje, cliente);
             return;
         }
         ServidorMulti.broadcastGlobal("[LOBBY - " + cliente.getId() + "]: " + mensaje, cliente);
@@ -106,6 +106,6 @@ public class Mensaje {
     }
 
     public static void enviarBienvenida(UnCliente cliente) throws IOException {
-        cliente.salida().writeUTF("\n=== COUP LOBBY ===\n /crear, /unirse [sala], /iniciar, /salir\n");
+        cliente.salida().writeUTF("\n=== COUP LOBBY ===\n /crear, /unirse [sala], /ver, /expulsar [nombreCliente], /iniciar, /salir\n");
     }
 }
