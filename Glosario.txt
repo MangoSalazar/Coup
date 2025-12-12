@@ -1,0 +1,85 @@
+================================================================================
+           GLOSARIO TÉCNICO - SISTEMA DE CHAT CLIENTE-SERVIDOR (JAVA)
+================================================================================
+
+--- 1. ARQUITECTURA GENERAL ---
+El sistema sigue una arquitectura de capas separando la lógica de conexión, 
+la lógica de negocio y el acceso a datos.
+
+[Paquete Datos]    : Responsable de la comunicación directa con la Base de Datos.
+[Paquete Servicio] : Responsable de la lógica de negocio (validaciones, auth).
+[Paquete Servidor] : Responsable de las conexiones de red (Sockets) y gestión de hilos.
+[Paquete Dominio]  : Contiene las clases entidad (Objetos planos / POJOs).
+
+--- 2. CLASES PRINCIPALES ---
+
+> SesionDAO (Data Access Object)
+  Clase encargada de ejecutar sentencias SQL contra la base de datos.
+  Implementa el patrón DAO para abstraer la persistencia.
+  - Uso: Insertar, actualizar, eliminar y consultar usuarios en la tabla 'cliente'.
+
+> ServicioSesion
+  Clase intermediaria que coordina la interacción entre un cliente conectado (Socket)
+  y la base de datos.
+  - Funciones: Valida formato de texto, verifica duplicados en memoria y delega
+    la autenticación real al SesionDAO.
+
+> ServidorMulti
+  Clase principal que ejecuta el ServerSocket. Mantiene un registro global (Map)
+  de todos los clientes conectados actualmente.
+  - Responsabilidad: Aceptar conexiones y almacenar referencias a 'UnCliente'.
+
+> UnCliente
+  Clase que representa a un usuario conectado. Probablemente extiende de Thread 
+  o Runnable. Maneja los flujos de entrada/salida (DataInputStream/DataOutputStream)
+  de un socket específico.
+
+> Sesion (Dominio)
+  Clase entidad que representa los datos de un usuario.
+  - Atributos: nombre (String), contra (String).
+
+--- 3. MÉTODOS Y FUNCIONES CLAVE ---
+
+> iniciarSesion() [en ServicioSesion]
+  Bucle principal de autenticación. Solicita credenciales repetidamente hasta
+  que el usuario se autentica correctamente o se desconecta.
+  
+> evaluarCredenciales(String)
+  Valida reglas de negocio antes de tocar la BD:
+  1. Longitud mínima (Usuario > 3, Contra > 5).
+  2. Caracteres permitidos (Alfanuméricos).
+  
+> yaLogueado(Sesion)
+  Verificación en memoria (RAM). Revisa la lista de clientes en 'ServidorMulti'
+  para asegurar que el usuario no esté conectado ya desde otra terminal.
+
+> cambiarIdCliente(String idAntiguo, String nuevoId) [en ServidorMulti]
+  Método crítico que actualiza la clave en el Mapa de clientes. Convierte el ID
+  temporal del socket (ej. "Cliente-1") al nombre real del usuario (ej. "Juan")
+  tras un login exitoso.
+
+--- 4. BASE DE DATOS Y SQL ---
+
+> Tabla: 'cliente'
+  Tabla relacional donde se persisten los datos.
+  - Columnas: nombre (PK o Unique), contra.
+
+> JDBC (Java Database Connectivity)
+  API de Java utilizada en SesionDAO para conectarse a MySQL/MariaDB.
+  Usa 'PreparedStatement' para prevenir inyección SQL.
+
+--- 5. PROTOCOLOS Y COMUNICACIÓN ---
+
+> Sockets (TCP/IP)
+  Mecanismo de comunicación bidireccional. El servidor escucha en un puerto,
+  el cliente se conecta a la IP/Puerto.
+
+> Flujos de Datos (Streams)
+  - readUTF(): Lectura de cadenas de texto codificadas en UTF-8.
+  - writeUTF(): Escritura de cadenas de texto.
+  Es vital que el orden de lectura/escritura sea simétrico entre Cliente y Servidor.
+
+================================================================================
+Autor: Generado para documentación del Proyecto Java Sockets + MySQL
+Fecha: Diciembre 2025
+================================================================================
