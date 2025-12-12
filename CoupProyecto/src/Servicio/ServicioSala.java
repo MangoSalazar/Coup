@@ -52,11 +52,12 @@ public class ServicioSala {
             return;
         }
         if (sala.getAdministrador().getId().equals(cliente.getId())) {
+            cliente.salida().writeUTF("Has salido de la sala, limpiando...");
+            sala.broadcast("<< " + " la sala ya no existe, saliendo...");
             sala.vaciarSala(sala);
             cliente.setEnSala(false);
             salas.remove(sala);//quiñonez
-            cliente.salida().writeUTF("Has salido de la sala, limpiando...");
-            sala.broadcast("<< " + " la sala ya no existe, saliendo...", null);
+            //sala.broadcast("<< " + " la sala ya no existe, saliendo...", null);
             return;
         }
         sala.obtenerIntegrantes().remove(cliente);
@@ -71,6 +72,10 @@ public class ServicioSala {
     }
 
     public void expulsar(String jugador, Sala sala) throws IOException {
+        if (sala.getAdministrador() != cliente) {
+            cliente.salida().writeUTF("No puedes expulsar ya que no eres admin :v");
+            return;
+        }
         for (UnCliente integrante : sala.obtenerIntegrantes()) {
             if (integrante.getId().equals(jugador)) {
                 sala.eliminarIntegrante(integrante);
@@ -82,6 +87,12 @@ public class ServicioSala {
     }
 
     public void ver() throws IOException {
+        if (cliente.isEnSala()) {
+            for (UnCliente integrante : obtenerSalaDelCliente().obtenerIntegrantes()) {
+                cliente.salida().writeUTF(integrante.getId());
+            }
+            return;
+        }
         if (salas.isEmpty()) {
             cliente.salida().writeUTF("No hay salas disponibles.");
             return;
