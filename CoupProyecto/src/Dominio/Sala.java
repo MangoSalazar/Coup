@@ -52,11 +52,16 @@ public class Sala {
     public UnCliente getAdministrador() {
         return administrador;
     }
-    public void vaciarSala(){
-        for(UnCliente integrante : integrantes){
+    public void eliminarAdministrador(){
+        this.administrador = null;
+    }
+    public void vaciarSala(Sala sala){
+        List<UnCliente> listaIntegrantes = sala.obtenerIntegrantes();
+        for(UnCliente integrante : listaIntegrantes){
             integrante.setEnSala(false);
-            integrantes.remove(integrante);
         }
+        this.integrantes.clear();
+        eliminarAdministrador();
     }
 
     public Partida getPartida() {

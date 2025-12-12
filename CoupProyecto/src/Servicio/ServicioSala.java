@@ -52,8 +52,11 @@ public class ServicioSala {
             return;
         }
         if (sala.getAdministrador().getId().equals(cliente.getId())) {
-            sala.vaciarSala();
+            sala.vaciarSala(sala);
+            cliente.setEnSala(false);
             salas.remove(sala);//quiñonez
+            cliente.salida().writeUTF("Has salido de la sala, limpiando...");
+            sala.broadcast("<< " + " la sala ya no existe, saliendo...", null);
             return;
         }
         sala.obtenerIntegrantes().remove(cliente);
