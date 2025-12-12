@@ -48,6 +48,12 @@ public class Sala {
     public UnCliente getAdministrador() {
         return administrador;
     }
+    public void vaciarSala(){
+        for(UnCliente integrante : integrantes){
+            integrante.setEnSala(false);
+            integrantes.remove(integrante);
+        }
+    }
 
     public Partida getPartida() {
         return partida;
