@@ -44,6 +44,10 @@ public class Sala {
     public void agregarIntegrante(UnCliente integrante) {
         integrantes.add(integrante);
     }
+    public void eliminarIntegrante(UnCliente integrante) {
+        integrante.setEnSala(false);
+        integrantes.remove(integrante);
+    }
 
     public UnCliente getAdministrador() {
         return administrador;
