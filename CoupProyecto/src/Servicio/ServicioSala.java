@@ -45,15 +45,6 @@ public class ServicioSala {
         cliente.salida().writeUTF("Te has unido a la sala " + nombreSala);
         s.broadcast(">>> " + cliente.getId() + " se ha unido.", cliente);
     }
-<<<<<<< HEAD
- 
-    public void salir(){
-        Sala salirse = obtenerSalaDelCliente();
-        if (salirse != null) {
-            salirse.eliminarIntegrante(cliente);
-        }
-    }
-=======
 
     public void salir(Sala sala) throws IOException {
         if (sala == null) {
@@ -89,13 +80,13 @@ public class ServicioSala {
             if (integrante.getId().equals(jugador)) {
                 sala.eliminarIntegrante(integrante);
                 cliente.salida().writeUTF("<< " + "se ha expulsado a " + integrante.getId());
+                integrante.salida().writeUTF("Te expulsaron papu :'V");
                 return;
             }
         }
         cliente.salida().writeUTF(jugador + " no esta en la sala");
     }
 
->>>>>>> partida
     public void ver() throws IOException {
         if (cliente.isEnSala()) {
             for (UnCliente integrante : obtenerSalaDelCliente().obtenerIntegrantes()) {

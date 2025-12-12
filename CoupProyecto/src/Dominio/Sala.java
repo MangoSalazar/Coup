@@ -45,10 +45,7 @@ public class Sala {
         integrantes.add(integrante);
     }
     public void eliminarIntegrante(UnCliente integrante) {
-<<<<<<< HEAD
-=======
         integrante.setEnSala(false);
->>>>>>> partida
         integrantes.remove(integrante);
     }
 
