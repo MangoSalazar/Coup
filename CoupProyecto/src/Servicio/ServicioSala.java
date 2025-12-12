@@ -31,33 +31,51 @@ public class ServicioSala {
 
     public void unirse(String nombreSala) throws IOException {
         int indice = existeSala(nombreSala);
-        if (indice != -1) {
-            Sala s = salas.get(indice);
-            s.agregarIntegrante(cliente);
-            cliente.setEnSala(true);
-
-            cliente.salida().writeUTF("Te has unido a la sala " + nombreSala);
-            s.broadcast(">>> " + cliente.getId() + " se ha unido.", cliente);
+        if (indice == -1) {
+            cliente.salida().writeUTF("Error: Sala no encontrada.");
             return;
         }
-        cliente.salida().writeUTF("Error: Sala no encontrada.");
+        Sala s = salas.get(indice);
+        if (cliente.isEnSala()) {
+            cliente.salida().writeUTF("ya formas parte de una sala");
+            return;
+        }
+        s.agregarIntegrante(cliente);
+        cliente.setEnSala(true);
+        cliente.salida().writeUTF("Te has unido a la sala " + nombreSala);
+        s.broadcast(">>> " + cliente.getId() + " se ha unido.", cliente);
     }
 
-    public void salir(String idCliente) throws IOException {
-        Sala sala = obtenerSalaDelCliente();
-        if (sala != null) {
-            sala.obtenerIntegrantes().remove(cliente);
-            cliente.setEnSala(false);
-            cliente.salida().writeUTF("Has salido de la sala.");
-
-            if (sala.obtenerIntegrantes().isEmpty()) {
-                salas.remove(sala);
-            } else {
-                sala.broadcast("<< " + idCliente + " ha salido de la sala.", null);
-            }
-        } else {
-            cliente.salida().writeUTF("No estás en ninguna sala.");
+    public void salir(Sala sala) throws IOException {
+        if (sala == null) {
+            cliente.salida().writeUTF("no estas dentro de ninguna sala");
+            return;
         }
+        if (sala.getAdministrador().getId().equals(cliente.getId())) {
+            sala.vaciarSala();
+            salas.remove(sala);//quiñonez
+            return;
+        }
+        sala.obtenerIntegrantes().remove(cliente);
+        cliente.setEnSala(false);
+        cliente.salida().writeUTF("Has salido de la sala.");
+
+        if (sala.obtenerIntegrantes().isEmpty()) {
+            salas.remove(sala);
+        }
+        sala.broadcast("<< " + cliente.getId() + " ha salido de la sala.", null);
+
+    }
+
+    public void expulsar(String jugador, Sala sala) throws IOException {
+        for (UnCliente integrante : sala.obtenerIntegrantes()) {
+            if (integrante.getId().equals(jugador)) {
+                sala.eliminarIntegrante(integrante);
+                cliente.salida().writeUTF("<< " + "se ha expulsado a " + integrante.getId());
+                return;
+            }
+        }
+        cliente.salida().writeUTF(jugador + " no esta en la sala");
     }
 
     public void ver() throws IOException {
