@@ -72,6 +72,10 @@ public class ServicioSala {
     }
 
     public void expulsar(String jugador, Sala sala) throws IOException {
+        if (sala == null ) {
+            cliente.salida().writeUTF("No puedes expulsar ya que no eres admin :v");
+            return;
+        }
         if (sala.getAdministrador() != cliente) {
             cliente.salida().writeUTF("No puedes expulsar ya que no eres admin :v");
             return;
