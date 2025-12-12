@@ -36,8 +36,9 @@ public class ServicioSesion {
             cliente.salida().writeUTF("Error: El usuario debe tener al menos 3 caracteres.");
             return null;
         }
-        if (!usuario.matches("^[a-zA-Z0-9_]+$")) {
-            cliente.salida().writeUTF("Error: El usuario solo puede contener letras y números.");
+        // Solo letras, números y guiones bajos, PERO no puede empezar con número
+        if (!usuario.matches("^[a-zA-Z][a-zA-Z0-9_]*$")) {
+            cliente.salida().writeUTF("Error: El usuario debe iniciar con una letra y solo puede contener letras, números o _.");
             return null;
         }
 
@@ -48,7 +49,9 @@ public class ServicioSesion {
     public boolean yaConectadoOnline(String nombre) {
         for (UnCliente c : ServidorMulti.clientes.values()) {
             // Ignoramos al cliente actual (que tiene ID numérico temporal)
-            if (c.equals(cliente)) continue;
+            if (c.equals(cliente)) {
+                continue;
+            }
 
             // Verificamos si alguien más ya tiene ese ID (ignora mayúsculas)
             if (c.getId().equalsIgnoreCase(nombre)) {
